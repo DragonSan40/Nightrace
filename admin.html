@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NIGHT RACE — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080A10; --panel: #10151F; --line: #1E2636; --ink: #E8ECF4;
+    --muted: #6F7C93; --accent: #E8A33D; --accent-dim: rgba(232,163,61,.16);
+    --danger: #FF3B6B; --danger-dim: rgba(255,59,107,.14);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font-family: "Chakra Petch", system-ui, sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: clamp(1.2rem, 4vw, 3rem) 1.2rem 4rem; }
+  h1 { font-size: 1.1rem; letter-spacing: .22em; margin: 0 0 .3rem; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .sub { color: var(--muted); font-size: .85rem; margin-bottom: 2rem; }
+
+  /* ---- login ---- */
+  #login { max-width: 320px; margin: 10vh auto; display: grid; gap: .8rem; }
+  #login input {
+    background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+    padding: .7rem .9rem; border-radius: 8px; font-family: inherit; font-size: .9rem;
+  }
+  #login input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #login button, .btn {
+    background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent);
+    padding: .7rem .9rem; border-radius: 8px; font-family: inherit; font-size: .85rem;
+    cursor: pointer; transition: background .15s ease;
+  }
+  #login button:hover, .btn:hover { background: rgba(232,163,61,.28); }
+  #login-error { color: var(--danger); font-size: .8rem; min-height: 1.2em; }
+
+  /* ---- admin shell ---- */
+  #admin { display: none; }
+  #admin.on { display: block; }
+  header.bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.6rem; }
+  #logout {
+    background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 999px;
+    padding: .4rem .9rem; font-family: inherit; font-size: .75rem; cursor: pointer;
+  }
+  #logout:hover { color: var(--ink); border-color: var(--accent); }
+
+  .tabs { display: flex; gap: .5rem; margin-bottom: 1.2rem; }
+  .tab {
+    flex: 1; background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+    padding: .6rem; border-radius: 8px; font-family: inherit; font-size: .82rem; cursor: pointer;
+  }
+  .tab.active { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+
+  .artist-field { margin-bottom: 1rem; }
+  .artist-field label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: .4rem; }
+  .artist-field input {
+    width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+    padding: .6rem .8rem; border-radius: 8px; font-family: inherit; font-size: .88rem;
+  }
+  .artist-field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .dropzone {
+    border: 2px dashed var(--line); border-radius: 12px; padding: 2rem 1rem; text-align: center;
+    color: var(--muted); font-size: .85rem; cursor: pointer; margin-bottom: 1.6rem;
+    transition: border-color .15s ease, color .15s ease, background .15s ease;
+  }
+  .dropzone.drag { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .dropzone input { display: none; }
+
+  #uploads { display: grid; gap: .5rem; margin-bottom: 1.6rem; }
+  .up-row { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .6rem .8rem; }
+  .up-row .name { font-size: .82rem; margin-bottom: .4rem; display: flex; justify-content: space-between; }
+  .up-row .pct { color: var(--muted); }
+  .up-bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .up-artist, .up-title {
+    width: 100%; margin-top: .5rem; background: var(--bg); border: 1px solid var(--line); color: var(--ink);
+    padding: .4rem .6rem; border-radius: 6px; font-family: inherit; font-size: .78rem;
+  }
+  .up-artist:focus, .up-title:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .up-bar i { display: block; height: 100%; width: 0%; background: var(--accent); transition: width .15s ease; }
+  .up-row.error .pct { color: var(--danger); }
+  .up-row.done .pct { color: var(--accent); }
+
+  .lane-head { display: flex; justify-content: space-between; align-items: center; margin: 1.6rem 0 .6rem; }
+  .bulkbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: .6rem; font-size: .8rem; color: var(--muted); }
+  .selall { display: flex; align-items: center; gap: .5rem; cursor: pointer; }
+  .btn.danger { background: var(--danger-dim); border-color: var(--danger); color: var(--danger); }
+  .btn.danger:hover { background: rgba(255,59,107,.26); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn:disabled:hover { background: var(--danger-dim); }
+  .track input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; }
+  .lane-head h2 { font-size: .85rem; letter-spacing: .1em; color: var(--muted); margin: 0; text-transform: uppercase; }
+  .track {
+    display: flex; align-items: center; gap: .7rem; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: .55rem .7rem; margin-bottom: .45rem; font-size: .85rem;
+  }
+  .track .meta { flex: 1; min-width: 0; }
+  .track .ttitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track .artist { color: var(--muted); font-size: .75rem; }
+  .track button {
+    background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 6px;
+    width: 28px; height: 28px; font-size: .8rem; cursor: pointer; flex-shrink: 0;
+  }
+  .track button:hover { color: var(--ink); border-color: var(--accent); }
+  .track button.danger:hover { color: var(--danger); border-color: var(--danger); }
+  .track .intro-flag.on { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+  .empty-lane { color: var(--muted); font-size: .8rem; padding: .5rem 0; }
+  #status { position: fixed; bottom: 1rem; right: 1rem; font-size: .78rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>NIGHT<em>·</em>RACE — Admin</h1>
+  <div class="sub">Upload, tag, and reorder tracks. Changes appear on the player automatically.</div>
+
+  <div id="login">
+    <input id="email" type="email" placeholder="Email" autocomplete="username">
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password">
+    <button id="login-btn" type="button">Log in</button>
+    <div id="login-error"></div>
+  </div>
+
+  <div id="admin">
+    <header class="bar">
+      <span class="sub" style="margin:0;">Signed in</span>
+      <button id="logout" type="button">Log out</button>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" data-mode="slow" type="button">Slow</button>
+      <button class="tab" data-mode="cool" type="button">Cool</button>
+      <button class="tab" data-mode="hype" type="button">Hype</button>
+    </div>
+
+    <div class="artist-field">
+      <label for="upload-artist">Artist for the next upload (optional — you can always rename later)</label>
+      <input id="upload-artist" type="text" placeholder="e.g. Kavinsky">
+    </div>
+
+    <div class="dropzone" id="dropzone">
+      Drop MP3s here, or click to choose files — uploads go to the selected lane above
+      <input id="picker" type="file" accept="audio/*" multiple>
+    </div>
+
+    <div id="uploads"></div>
+
+    <div class="lane-head">
+      <h2 id="lane-title">Slow — tracks</h2>
+    </div>
+    <div class="bulkbar" id="bulkbar">
+      <label class="selall"><input type="checkbox" id="select-all"> Select all</label>
+      <button id="delete-selected" class="btn danger" type="button" disabled>Delete selected (0)</button>
+    </div>
+    <div id="tracklist"></div>
+  </div>
+</div>
+
+<div id="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.109.0"></script>
+<script>
+(function(){
+  "use strict";
+
+  // Same project as the player — the anon key is meant to be public;
+  // Row Level Security policies (from supabase-setup.sql) are what
+  // actually keeps writes locked to a signed-in user.
+  const SUPABASE_URL = "https://opbdbdpbpowwbkukqtcz.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wYmRiZHBicG93d2JrdWtxdGN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4MzI2MTUsImV4cCI6MjEwNjQwODYxNX0.2Iaaakjz_ftDZFv_p3iuvbK7Ig-8gHXB12wHERSyioM";
+  const BUCKET = "tracks-audio";
+  const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const $ = s => document.querySelector(s);
+  let mode = "slow";
+  let session = null;
+
+  /* ================= auth ================= */
+  async function checkSession(){
+    const { data } = await supa.auth.getSession();
+    session = data.session;
+    showAs(session ? "admin" : "login");
+    if (session) loadTracks();
+  }
+  function showAs(which){
+    $("#login").style.display = which === "login" ? "grid" : "none";
+    $("#admin").classList.toggle("on", which === "admin");
+  }
+  $("#login-btn").addEventListener("click", async () => {
+    $("#login-error").textContent = "";
+    const email = $("#email").value.trim(), password = $("#password").value;
+    if (!email || !password) { $("#login-error").textContent = "Enter both fields."; return; }
+    const { data, error } = await supa.auth.signInWithPassword({ email, password });
+    if (error) { $("#login-error").textContent = error.message; return; }
+    session = data.session;
+    showAs("admin");
+    loadTracks();
+  });
+  $("#password").addEventListener("keydown", e => { if (e.key === "Enter") $("#login-btn").click(); });
+  $("#logout").addEventListener("click", async () => { await supa.auth.signOut(); session = null; showAs("login"); });
+  supa.auth.onAuthStateChange((_event, s) => { session = s; });
+
+  /* ================= lane tabs ================= */
+  document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    mode = t.dataset.mode;
+    $("#lane-title").textContent = t.textContent + " — tracks";
+    selectedIds.clear();
+    loadTracks();
+  }));
+
+  /* ================= upload ================= */
+  const dz = $("#dropzone"), picker = $("#picker");
+  dz.addEventListener("click", () => picker.click());
+  picker.addEventListener("change", e => { handleFiles(e.target.files); picker.value = ""; });
+  ["dragenter","dragover"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("drag"); }));
+  ["dragleave","drop"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("drag"); }));
+  dz.addEventListener("drop", e => { if (e.dataTransfer?.files) handleFiles(e.dataTransfer.files); });
+
+  function handleFiles(fileList){
+    for (const f of fileList) {
+      if (!f.type.startsWith("audio/") && !/\.(mp3|m4a|ogg|wav|flac)$/i.test(f.name)) continue;
+      uploadOne(f);
+    }
+  }
+
+  function slugify(name){
+    return name.replace(/\.[^.]+$/, "").toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  }
+  function titleFromFilename(name){
+    return name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+  }
+
+  /* Default naming format: "Song Name - Artist.mp3" (space, dash, space).
+     Underscores count as spaces. If a file has no " - ", the whole name is
+     used as the song and the Artist box falls back to the master field. */
+  function parseName(fileName){
+    const base = fileName.replace(/\.[^.]+$/, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+    const cap = s => s.trim().replace(/\b[a-z]/g, c => c.toUpperCase());
+    const m = base.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+    return m ? { title: cap(m[1]), artist: cap(m[2]) }
+             : { artist: "", title: cap(base.replace(/-/g, " ")) };
+  }
+
+  function uploadOne(file){
+    const row = document.createElement("div");
+    row.className = "up-row";
+    row.innerHTML =
+      '<div class="name"><span class="fname"></span><span class="pct">0%</span></div>' +
+      '<div class="up-bar"><i></i></div>' +
+      '<input class="up-title" type="text" placeholder="Song name">' +
+      '<input class="up-artist" type="text" placeholder="Artist for this track">';
+    row.querySelector(".fname").textContent = file.name;
+    // Pre-filled from the master field (handy for same-artist batches) but
+    // independently editable per row — this is what makes a mixed-artist
+    // bulk upload work: change just the ones that differ before they finish.
+    const parsed = parseName(file.name);
+    row.querySelector(".up-artist").value = parsed.artist || $("#upload-artist").value.trim();
+    // Song name starts as a tidied-up file name ("last-summer" -> "Last Summer")
+    // and can be edited per row, same as the artist.
+    row.querySelector(".up-title").value = parsed.title;
+    $("#uploads").prepend(row);
+
+    const path = mode + "/" + Date.now() + "-" + slugify(file.name) + ".mp3";
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", SUPABASE_URL + "/storage/v1/object/" + BUCKET + "/" + path);
+    xhr.setRequestHeader("Authorization", "Bearer " + session.access_token);
+    xhr.setRequestHeader("apikey", SUPABASE_ANON_KEY);
+    xhr.setRequestHeader("Content-Type", file.type || "audio/mpeg");
+    xhr.upload.onprogress = e => {
+      if (!e.lengthComputable) return;
+      const pct = Math.round((e.loaded / e.total) * 100);
+      row.querySelector(".pct").textContent = pct + "%";
+      row.querySelector(".up-bar i").style.width = pct + "%";
+    };
+    xhr.onload = async () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        row.classList.add("done");
+        row.querySelector(".pct").textContent = "done";
+        const { count } = await supa.from("tracks").select("id", { count: "exact", head: true }).eq("mode", mode);
+        await supa.from("tracks").insert({
+          mode, path,
+          title: row.querySelector(".up-title").value.trim() || titleFromFilename(file.name),
+          artist: row.querySelector(".up-artist").value.trim(),   // read now, not at row-creation — respects edits made during upload
+          position: (count || 0) + 1
+        });
+        setTimeout(() => row.remove(), 1500);
+        loadTracks();
+      } else {
+        row.classList.add("error");
+        row.querySelector(".pct").textContent = "failed (" + xhr.status + ")";
+      }
+    };
+    xhr.onerror = () => { row.classList.add("error"); row.querySelector(".pct").textContent = "network error"; };
+    xhr.send(file);
+  }
+
+  /* ================= track list ================= */
+  const selectedIds = new Set();
+
+  function updateBulkbar(totalCount){
+    const n = selectedIds.size;
+    $("#delete-selected").disabled = n === 0;
+    $("#delete-selected").textContent = "Delete selected (" + n + ")";
+    $("#select-all").checked = totalCount > 0 && n === totalCount;
+    $("#select-all").indeterminate = n > 0 && n < totalCount;
+  }
+
+  let currentTracks = [];   // the full list currently rendered for this lane — Select All reads this directly
+
+  async function loadTracks(){
+    const { data, error } = await supa.from("tracks").select("*").eq("mode", mode).order("position", { ascending: true });
+    const list = $("#tracklist");
+    list.innerHTML = "";
+    currentTracks = [];
+    if (error) { list.innerHTML = '<div class="empty-lane">Couldn\'t load tracks: ' + error.message + '</div>'; updateBulkbar(0); return; }
+    if (!data.length) { list.innerHTML = '<div class="empty-lane">No tracks in this lane yet.</div>'; updateBulkbar(0); return; }
+    currentTracks = data;
+
+    // drop any selected ids that no longer exist in this lane's current list
+    const idsHere = new Set(data.map(t => t.id));
+    for (const id of [...selectedIds]) if (!idsHere.has(id)) selectedIds.delete(id);
+
+    data.forEach((t, i) => {
+      const row = document.createElement("div");
+      row.className = "track";
+      row.innerHTML =
+        '<input type="checkbox" class="sel">' +
+        '<div class="meta"><div class="ttitle"></div><div class="artist"></div></div>' +
+        '<button class="intro-flag' + (t.intro ? ' on' : '') + '" title="Toggle intro track">★</button>' +
+        '<button class="up" title="Move up" ' + (i === 0 ? "disabled" : "") + '>↑</button>' +
+        '<button class="down" title="Move down" ' + (i === data.length - 1 ? "disabled" : "") + '>↓</button>' +
+        '<button class="rename" title="Rename">✎</button>' +
+        '<button class="danger del" title="Delete">✕</button>';
+      row.querySelector(".ttitle").textContent = t.title;
+      row.querySelector(".artist").textContent = t.artist || "—";
+
+      const checkbox = row.querySelector(".sel");
+      checkbox.checked = selectedIds.has(t.id);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) selectedIds.add(t.id); else selectedIds.delete(t.id);
+        updateBulkbar(data.length);
+      });
+
+      row.querySelector(".intro-flag").addEventListener("click", async () => {
+        await supa.from("tracks").update({ intro: !t.intro }).eq("id", t.id);
+        loadTracks();
+      });
+      row.querySelector(".rename").addEventListener("click", async () => {
+        const title = prompt("Title:", t.title); if (title === null) return;
+        const artist = prompt("Artist:", t.artist || ""); if (artist === null) return;
+        await supa.from("tracks").update({ title, artist }).eq("id", t.id);
+        loadTracks();
+      });
+      row.querySelector(".del").addEventListener("click", async () => {
+        if (!confirm('Delete "' + t.title + '"? This removes the audio file too.')) return;
+        const { error: storErr } = await supa.storage.from(BUCKET).remove([t.path]);
+        if (storErr) setStatus("Warning — audio file may not have been removed: " + storErr.message, true);
+        const { error: delErr } = await supa.from("tracks").delete().eq("id", t.id);
+        if (delErr) { setStatus("Delete failed: " + delErr.message, true); return; }
+        selectedIds.delete(t.id);
+        loadTracks();
+      });
+      if (i > 0) row.querySelector(".up").addEventListener("click", async () => {
+        const other = data[i-1];
+        await supa.from("tracks").update({ position: other.position }).eq("id", t.id);
+        await supa.from("tracks").update({ position: t.position }).eq("id", other.id);
+        loadTracks();
+      });
+      if (i < data.length - 1) row.querySelector(".down").addEventListener("click", async () => {
+        const other = data[i+1];
+        await supa.from("tracks").update({ position: other.position }).eq("id", t.id);
+        await supa.from("tracks").update({ position: t.position }).eq("id", other.id);
+        loadTracks();
+      });
+
+      list.appendChild(row);
+    });
+
+    updateBulkbar(data.length);
+  }
+
+  /* ================= bulk actions ================= */
+  $("#select-all").addEventListener("change", e => {
+    const checked = e.target.checked;
+    if (checked) currentTracks.forEach(t => selectedIds.add(t.id));
+    else selectedIds.clear();
+    document.querySelectorAll(".track .sel").forEach(cb => { cb.checked = checked; });
+    updateBulkbar(currentTracks.length);
+  });
+  function setStatus(msg, isError){
+    const el = $("#status");
+    el.textContent = msg;
+    el.style.color = isError ? "var(--danger)" : "var(--muted)";
+  }
+
+  $("#delete-selected").addEventListener("click", async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    if (!confirm("Delete " + ids.length + " track" + (ids.length === 1 ? "" : "s") + "? This removes the audio files too and can't be undone.")) return;
+
+    $("#delete-selected").disabled = true;
+    $("#delete-selected").textContent = "Deleting…";
+    setStatus("");
+
+    const { data: rows, error: selErr } = await supa.from("tracks").select("id,path").in("id", ids);
+    if (selErr) { setStatus("Couldn't read those tracks: " + selErr.message, true); updateBulkbar(selectedIds.size); return; }
+
+    const paths = (rows || []).map(r => r.path);
+    if (paths.length) {
+      const { error: storErr } = await supa.storage.from(BUCKET).remove(paths);
+      if (storErr) setStatus("Warning — some audio files may not have been removed: " + storErr.message, true);
+    }
+
+    const { error: delErr } = await supa.from("tracks").delete().in("id", ids);
+    if (delErr) { setStatus("Delete failed: " + delErr.message, true); updateBulkbar(selectedIds.size); return; }
+
+    setStatus(ids.length + " track" + (ids.length === 1 ? "" : "s") + " deleted.");
+    selectedIds.clear();
+    loadTracks();
+  });
+
+  checkSession();
+})();
+</script>
+</body>
+</html>
