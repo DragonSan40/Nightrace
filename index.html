@@ -621,6 +621,7 @@
   </div>
         <button id="install-btn" type="button" class="install-btn" hidden>📲 Install Night Race</button>
         <div id="ios-install-hint" class="ios-hint" hidden>On iPhone: tap Share, then "Add to Home Screen"</div>
+  <p class="eq-note">Privacy: Night Race counts listens and likes anonymously. It keeps your device type, browser, time zone, country and a scrambled one-way code from your IP address (never the address itself), plus a random ID in this browser. No name or email.</p>
 </aside>
 
 <aside id="tuning" class="sheet" role="dialog" aria-modal="true" aria-label="Tuning equalizer">
@@ -786,7 +787,7 @@
       for (const row of data) {
         if (!grouped[row.mode]) continue;
         const pub = supa.storage.from("tracks-audio").getPublicUrl(row.path);
-        grouped[row.mode].push({ title: row.title, artist: row.artist || "—", src: pub.data.publicUrl, intro: !!row.intro });
+        grouped[row.mode].push({ id: row.id, title: row.title, artist: row.artist || "—", src: pub.data.publicUrl, intro: !!row.intro });
       }
       // only overwrite a lane that actually has rows — an empty lane in the
       // database (nothing uploaded to it yet) keeps its local fallback
@@ -1714,6 +1715,50 @@
     if (el.duration - el.currentTime <= FADE_MS / 1000) load(1);
   }
 
+  /* ---- Anonymous stats + shared likes (Supabase). Everything here is
+     best-effort: if the network or a table is missing, the player works the same. ---- */
+  const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch(e){ return d; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch(e){} };
+  const visitorId = (() => {
+    let id = lsGet("nightrace.visitor", "");
+    if (!/^[a-z0-9-]{8,64}$/.test(id)) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
+      lsSet("nightrace.visitor", id);
+    }
+    return id;
+  })();
+  let playCount = parseInt(lsGet("nightrace.plays", "0"), 10) || 0, lastCounted = "";
+  function castVote(t, v){
+    if (!supa || !t || !t.id) return;
+    supa.rpc("cast_vote", { p_track: t.id, p_voter: visitorId, p_vote: v }).then(() => {}, () => {});
+  }
+  function deviceInfo(){
+    const ua = navigator.userAgent || "";
+    const os = /android/i.test(ua) ? "Android" : /iphone|ipad|ipod/i.test(ua) ? "iOS" : /windows/i.test(ua) ? "Windows"
+             : /cros/i.test(ua) ? "ChromeOS" : /mac os/i.test(ua) ? "macOS" : /linux/i.test(ua) ? "Linux" : "Other";
+    const device = /ipad|tablet/i.test(ua) || (/android/i.test(ua) && !/mobile/i.test(ua)) ? "tablet" : /mobi|iphone|android/i.test(ua) ? "mobile" : "desktop";
+    const browser = /FBAN|FBAV|Instagram|Line\/|MicroMessenger|; wv\)|WhatsApp/i.test(ua) ? "In-app browser"
+                  : navigator.brave ? "Brave" : /edg\//i.test(ua) ? "Edge" : /opr\/|opera/i.test(ua) ? "Opera" : /samsungbrowser/i.test(ua) ? "Samsung"
+                  : /firefox|fxios/i.test(ua) ? "Firefox" : /chrome|crios/i.test(ua) ? "Chrome" : /safari/i.test(ua) ? "Safari" : "Other";
+    const installed = !!((window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone);
+    return { device, os, browser, installed, screen: screen.width + "x" + screen.height };
+  }
+  let helloSent = false;
+  async function pingSession(){
+    if (!supa) return;
+    try {
+      const d = deviceInfo();
+      const { error } = await supa.rpc("ping_session", {
+        p_visitor: visitorId, p_device_type: d.device, p_os: d.os, p_browser: d.browser, p_installed: d.installed,
+        p_screen: d.screen, p_lang: navigator.language || "", p_tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || ""),
+        p_lane: mode, p_plays: playCount
+      });
+      // Country + one-way IP hash come from a tiny Supabase Edge Function ("hello"); skipped silently if it isn't deployed.
+      if (!error && !helloSent) { helloSent = true; supa.functions.invoke("hello", { body: { visitor: visitorId } }).catch(() => {}); }
+    } catch(e){}
+  }
+  setInterval(() => { if (started && decks[activeIdx] && !decks[activeIdx].paused) pingSession(); }, 60000);
+
   let shownTrack = null;
   function paintRate(t){
     const lk = $("#like"), dl = $("#dislike");
@@ -1728,6 +1773,7 @@
     if (!t || !started) return;
     if (tasteOf(t) === v) delete taste[t.src]; else taste[t.src] = v;
     recomputeArtists(); save(); paintRate(t);
+    castVote(t, tasteOf(t));
     if (navigator.vibrate) navigator.vibrate(10);
     if (shuffle) buildOrder(t);          // re-rank what comes next, keep this track current
     if (tasteOf(t) < 0) load(1);         // disliked: move on right away
@@ -1735,6 +1781,7 @@
   function paint(t){
     shownTrack = t || null;
     paintRate(shownTrack);
+    if (t && t.src !== lastCounted) { lastCounted = t.src; playCount++; lsSet("nightrace.plays", String(playCount)); }
     if (!t){
       $("#np-title").textContent = "Warming up…";
       $("#np-sub").textContent = "Tracks for this lane are on the way";
@@ -1856,6 +1903,7 @@
       paint(null);
     }
     save();
+    if (started) pingSession();
   }
 
   /* ================= wiring ================= */
@@ -1875,6 +1923,7 @@
     $("#deck").classList.add("on");
     $("#deck").setAttribute("aria-hidden","false");
     setTimeout(()=> { if (list().length) load(1); }, 1400);
+    pingSession();
 
     // Media Session — registering these is what makes Android show working
     // Play/Pause/Next/Previous on the lock screen and notification shade,

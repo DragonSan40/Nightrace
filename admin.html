@@ -18,7 +18,7 @@
     margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
     font-family: "Chakra Petch", system-ui, sans-serif;
   }
-  .wrap { max-width: 760px; margin: 0 auto; padding: clamp(1.2rem, 4vw, 3rem) 1.2rem 4rem; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: clamp(1.2rem, 4vw, 3rem) 1.2rem 4rem; }
   h1 { font-size: 1.1rem; letter-spacing: .22em; margin: 0 0 .3rem; }
   h1 em { font-style: normal; color: var(--accent); }
   .sub { color: var(--muted); font-size: .85rem; margin-bottom: 2rem; }
@@ -108,6 +108,41 @@
   .track button.danger:hover { color: var(--danger); border-color: var(--danger); }
   .track .intro-flag.on { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
   .empty-lane { color: var(--muted); font-size: .8rem; padding: .5rem 0; }
+  /* ---- top menu + views ---- */
+  .menu { display: flex; gap: .4rem; margin-bottom: 1.4rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .menu button {
+    background: none; border: 1px solid transparent; color: var(--muted); padding: .55rem 1rem; border-radius: 999px;
+    font-family: inherit; font-size: .85rem; cursor: pointer; white-space: nowrap;
+  }
+  .menu button:hover { color: var(--ink); }
+  .menu button.on { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+  .view { display: none; }
+  .view.on { display: block; }
+  .votes { color: var(--muted); font-size: .72rem; margin-left: .5rem; white-space: nowrap; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .6rem; margin-bottom: 1.2rem; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .8rem 1rem; }
+  .card b { display: block; font-size: 1.6rem; color: var(--accent); line-height: 1.1; }
+  .card span { font-size: .72rem; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+  .card.live b::before { content: ""; display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: #3FC96B; margin-right: .5rem; vertical-align: middle; box-shadow: 0 0 8px #3FC96B; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .8rem; margin-bottom: 1.2rem; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .8rem 1rem; }
+  .panel h3 { margin: 0 0 .6rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .bar-row { display: grid; grid-template-columns: 6.5rem 1fr 2.2rem; align-items: center; gap: .5rem; font-size: .78rem; margin-bottom: .35rem; }
+  .bar-row .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-row .trk { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .bar-row .trk i { display: block; height: 100%; background: var(--accent); }
+  .bar-row .n { color: var(--muted); text-align: right; }
+  table.data { width: 100%; border-collapse: collapse; font-size: .78rem; }
+  table.data th { text-align: left; color: var(--muted); font-weight: 600; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; padding: .4rem .5rem; border-bottom: 1px solid var(--line); }
+  table.data td { padding: .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tablewrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .toolbar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-bottom: .8rem; }
+  .toolbar select { background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: .5rem .7rem; font-family: inherit; font-size: .8rem; }
+  .note { color: var(--muted); font-size: .76rem; line-height: 1.5; margin: 0 0 1rem; }
+  .toolrow { display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .8rem 1rem; margin-bottom: .5rem; }
+  .toolrow p { margin: 0; font-size: .78rem; color: var(--muted); }
+  .toolrow strong { display: block; color: var(--ink); font-size: .85rem; margin-bottom: .15rem; font-weight: 600; }
   #status { position: fixed; bottom: 1rem; right: 1rem; font-size: .78rem; color: var(--muted); }
 </style>
 </head>
@@ -130,6 +165,23 @@
       <button id="logout" type="button">Log out</button>
     </header>
 
+    <nav class="menu" id="menu" aria-label="Admin sections">
+      <button type="button" class="on" data-view="overview">📊 Overview</button>
+      <button type="button" data-view="tracks">🎵 Tracks</button>
+      <button type="button" data-view="likes">👍 Likes</button>
+      <button type="button" data-view="listeners">📱 Listeners</button>
+      <button type="button" data-view="downloader">⬇ Downloader</button>
+      <button type="button" data-view="tools">🧰 Tools</button>
+    </nav>
+
+    <section class="view on" id="v-overview">
+      <p class="note">A quick look at the whole app. Numbers come straight from your Supabase tables.</p>
+      <div class="toolbar"><button class="btn" id="overview-refresh" type="button">↻ Refresh</button></div>
+      <div class="cards" id="overview-cards"></div>
+      <div class="grid2" id="overview-panels"></div>
+    </section>
+
+    <section class="view" id="v-tracks">
     <div class="tabs">
       <button class="tab active" data-mode="slow" type="button">Slow</button>
       <button class="tab" data-mode="cool" type="button">Cool</button>
@@ -156,6 +208,45 @@
       <button id="delete-selected" class="btn danger" type="button" disabled>Delete selected (0)</button>
     </div>
     <div id="tracklist"></div>
+    </section>
+
+    <section class="view" id="v-likes">
+      <p class="note">Likes and dislikes from listeners, one vote per browser per song. Songs nobody has voted on are listed last.</p>
+      <div class="toolbar">
+        <select id="likes-lane" aria-label="Lane"><option value="all">All lanes</option><option value="slow">Slow</option><option value="cool">Cool</option><option value="hype">Hype</option></select>
+        <select id="likes-sort" aria-label="Sort"><option value="top">Most liked first</option><option value="bottom">Least liked first</option><option value="votes">Most votes first</option></select>
+        <button class="btn" id="likes-refresh" type="button">↻ Refresh</button>
+      </div>
+      <div class="tablewrap"><table class="data"><thead><tr><th>Song</th><th>Lane</th><th class="num">👍</th><th class="num">👎</th><th class="num">Net</th></tr></thead><tbody id="likes-body"></tbody></table></div>
+    </section>
+
+    <section class="view" id="v-listeners">
+      <p class="note">Anonymous stats: device type, system, browser, screen size, time zone, country and activity. The IP address itself is never stored, only a one-way scrambled code used to count unique networks (needs the "hello" function). No name or email. "Live" means active in the last 2 minutes.</p>
+      <div class="toolbar"><button class="btn" id="listeners-refresh" type="button">↻ Refresh</button></div>
+      <div class="cards" id="listener-cards"></div>
+      <div class="grid2" id="listener-breakdowns"></div>
+      <div class="lane-head"><h2>Recent listeners</h2></div>
+      <div class="tablewrap"><table class="data"><thead><tr><th>Last seen</th><th>Country</th><th>Device</th><th>System</th><th>Browser</th><th>App</th><th>Screen</th><th>Lane</th><th class="num">Plays</th><th class="num">Visits</th></tr></thead><tbody id="listeners-body"></tbody></table></div>
+    </section>
+
+    <section class="view" id="v-downloader">
+      <p class="note">Song Fetch is your separate local downloader. This page just opens it and keeps the rules in front of you. Only bring in music that is public domain, CC0, CC-BY or that the artist has given written permission for. Avoid NC (non-commercial) and ND (no-derivatives) licences.</p>
+      <div class="toolrow"><p><strong>Open Song Fetch</strong>Paste the address where Song Fetch runs on your computer (for example http://localhost:5000). It is remembered in this browser.</p></div>
+      <div class="toolbar"><input id="fetch-url" type="url" placeholder="http://localhost:5000" style="flex:1;min-width:200px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:.55rem .7rem;font-family:inherit;font-size:.82rem"><button class="btn" id="fetch-open" type="button">Open</button></div>
+      <div class="panel"><h3>Before you add any song</h3>
+        <ol class="note" style="margin:0;padding-left:1.1rem">
+          <li>Open the track's own page and confirm the licence (CC0, CC-BY or public domain).</li>
+          <li>Save the track page link and licence in your tracker sheet.</li>
+          <li>Name the file <b>Song Name - Artist.mp3</b> so the upload fills both fields.</li>
+          <li>Upload it in the Tracks tab, then check it plays in the right lane.</li>
+        </ol></div>
+    </section>
+
+    <section class="view" id="v-tools">
+      <div class="toolrow"><p><strong>Export tracks (CSV)</strong>Every track with lane, order, likes and dislikes. Opens in Excel or Sheets.</p><button class="btn" id="export-tracks" type="button">Download</button></div>
+      <div class="toolrow"><p><strong>Export listeners (CSV)</strong>The anonymous listener rows shown on the Listeners page.</p><button class="btn" id="export-listeners" type="button">Download</button></div>
+      <div class="toolrow"><p><strong>Clear old listener stats</strong>Deletes listener rows not seen for 30 days. Good housekeeping for privacy.</p><button class="btn danger" id="clear-old" type="button">Clear</button></div>
+    </section>
   </div>
 </div>
 
@@ -183,7 +274,7 @@
     const { data } = await supa.auth.getSession();
     session = data.session;
     showAs(session ? "admin" : "login");
-    if (session) loadTracks();
+    if (session) { loadTracks(); loadOverview(); }
   }
   function showAs(which){
     $("#login").style.display = which === "login" ? "grid" : "none";
@@ -198,6 +289,7 @@
     session = data.session;
     showAs("admin");
     loadTracks();
+    loadOverview();
   });
   $("#password").addEventListener("keydown", e => { if (e.key === "Enter") $("#login-btn").click(); });
   $("#logout").addEventListener("click", async () => { await supa.auth.signOut(); session = null; showAs("login"); });
@@ -315,6 +407,7 @@
 
   async function loadTracks(){
     const { data, error } = await supa.from("tracks").select("*").eq("mode", mode).order("position", { ascending: true });
+    const tally = await voteTally();
     const list = $("#tracklist");
     list.innerHTML = "";
     currentTracks = [];
@@ -336,9 +429,12 @@
         '<button class="up" title="Move up" ' + (i === 0 ? "disabled" : "") + '>↑</button>' +
         '<button class="down" title="Move down" ' + (i === data.length - 1 ? "disabled" : "") + '>↓</button>' +
         '<button class="rename" title="Rename">✎</button>' +
+        '<button class="move" title="Move to another lane">⇄</button>' +
         '<button class="danger del" title="Delete">✕</button>';
       row.querySelector(".ttitle").textContent = t.title;
       row.querySelector(".artist").textContent = t.artist || "—";
+      const tv = tally[t.id];
+      if (tv) { const v = document.createElement("span"); v.className = "votes"; v.textContent = "👍 " + tv.up + "  👎 " + tv.down; row.querySelector(".ttitle").appendChild(v); }
 
       const checkbox = row.querySelector(".sel");
       checkbox.checked = selectedIds.has(t.id);
@@ -355,6 +451,17 @@
         const title = prompt("Title:", t.title); if (title === null) return;
         const artist = prompt("Artist:", t.artist || ""); if (artist === null) return;
         await supa.from("tracks").update({ title, artist }).eq("id", t.id);
+        loadTracks();
+      });
+      row.querySelector(".move").addEventListener("click", async () => {
+        const to = (prompt('Move "' + t.title + '" to which lane? Type slow, cool or hype:', "") || "").trim().toLowerCase();
+        if (!to) return;
+        if (!["slow","cool","hype"].includes(to)) { setStatus("Lane must be slow, cool or hype.", true); return; }
+        if (to === t.mode) return;
+        const { count } = await supa.from("tracks").select("id", { count: "exact", head: true }).eq("mode", to);
+        const { error: mvErr } = await supa.from("tracks").update({ mode: to, position: (count || 0) + 1 }).eq("id", t.id);
+        if (mvErr) { setStatus("Move failed: " + mvErr.message, true); return; }
+        setStatus('Moved "' + t.title + '" to ' + to + ".");
         loadTracks();
       });
       row.querySelector(".del").addEventListener("click", async () => {
@@ -423,6 +530,195 @@
     setStatus(ids.length + " track" + (ids.length === 1 ? "" : "s") + " deleted.");
     selectedIds.clear();
     loadTracks();
+  });
+
+  /* ================= menu ================= */
+  const VIEWS = ["overview","tracks","likes","listeners","downloader","tools"];
+  function showView(name){
+    document.querySelectorAll("#menu button").forEach(b => b.classList.toggle("on", b.dataset.view === name));
+    VIEWS.forEach(v => $("#v-" + v).classList.toggle("on", v === name));
+    if (name === "overview") loadOverview();
+    if (name === "likes") loadLikes();
+    if (name === "listeners") loadListeners();
+  }
+  document.querySelectorAll("#menu button").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
+
+  /* ================= shared helpers ================= */
+  const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+  // PostgREST returns at most 1000 rows per request, so page through.
+  async function fetchAll(table, columns, order){
+    const out = [];
+    for (let from = 0; from < 50000; from += 1000) {
+      let q = supa.from(table).select(columns).range(from, from + 999);
+      if (order) q = q.order(order.col, { ascending: !!order.asc });
+      const { data, error } = await q;
+      if (error) return { data: out, error };
+      out.push(...data);
+      if (data.length < 1000) break;
+    }
+    return { data: out, error: null };
+  }
+  async function voteTally(){
+    const map = {};
+    const { data, error } = await fetchAll("track_votes", "track_id,vote");
+    if (error) return map;           // table not created yet — the badges just don't show
+    for (const r of data) {
+      const m = map[r.track_id] || (map[r.track_id] = { up: 0, down: 0 });
+      if (r.vote > 0) m.up++; else m.down++;
+    }
+    return map;
+  }
+  function csvCell(v){
+    let t = String(v == null ? "" : v);
+    if (/^[=+\-@]/.test(t)) t = "'" + t;            // stop spreadsheet formula injection
+    return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }
+  function downloadCsv(name, rows){
+    const blob = new Blob(["﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+  const ago = iso => {
+    const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+    if (s < 90) return "just now";
+    if (s < 3600) return Math.round(s / 60) + " min ago";
+    if (s < 86400) return Math.round(s / 3600) + " h ago";
+    return Math.round(s / 86400) + " d ago";
+  };
+
+  /* ================= likes ================= */
+  let likesRows = [];
+  async function buildLikesRows(){
+    const [tr, tally] = await Promise.all([fetchAll("tracks", "id,title,artist,mode,position,path,intro"), voteTally()]);
+    if (tr.error) throw tr.error;
+    return tr.data.map(t => { const v = tally[t.id] || { up: 0, down: 0 }; return { ...t, up: v.up, down: v.down, net: v.up - v.down }; });
+  }
+  async function loadLikes(){
+    $("#likes-body").innerHTML = '<tr><td colspan="5" class="empty-lane">Loading…</td></tr>';
+    try { likesRows = await buildLikesRows(); } catch(e) { $("#likes-body").innerHTML = '<tr><td colspan="5" class="empty-lane">Couldn\'t load: ' + esc(e.message) + '</td></tr>'; return; }
+    renderLikes();
+  }
+  function renderLikes(){
+    const lane = $("#likes-lane").value, sort = $("#likes-sort").value;
+    let rows = likesRows.filter(r => lane === "all" || r.mode === lane);
+    const voted = r => r.up + r.down > 0;
+    rows.sort((a, b) => {
+      if (voted(a) !== voted(b)) return voted(a) ? -1 : 1;           // unvoted songs always last
+      if (sort === "bottom") return a.net - b.net || (b.up + b.down) - (a.up + a.down);
+      if (sort === "votes") return (b.up + b.down) - (a.up + a.down) || b.net - a.net;
+      return b.net - a.net || (b.up + b.down) - (a.up + a.down);
+    });
+    $("#likes-body").innerHTML = rows.length ? rows.map(r =>
+      '<tr><td>' + esc(r.title) + '<div class="artist" style="color:var(--muted);font-size:.72rem">' + esc(r.artist || "—") + '</div></td>' +
+      '<td>' + esc(r.mode) + '</td><td class="num">' + r.up + '</td><td class="num">' + r.down + '</td>' +
+      '<td class="num" style="color:' + (r.net > 0 ? "var(--accent)" : r.net < 0 ? "var(--danger)" : "var(--muted)") + '">' + (r.net > 0 ? "+" : "") + r.net + '</td></tr>'
+    ).join("") : '<tr><td colspan="5" class="empty-lane">No songs yet.</td></tr>';
+  }
+  $("#likes-lane").addEventListener("change", renderLikes);
+  $("#likes-sort").addEventListener("change", renderLikes);
+  $("#likes-refresh").addEventListener("click", loadLikes);
+
+  /* ================= listeners ================= */
+  let listenerRows = [];
+  function bars(title, values){
+    const counts = {};
+    values.forEach(v => { const k = v || "unknown"; counts[k] = (counts[k] || 0) + 1; });
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const max = entries.length ? entries[0][1] : 1;
+    return '<div class="panel"><h3>' + esc(title) + '</h3>' + (entries.map(([k, n]) =>
+      '<div class="bar-row"><span class="lbl" title="' + esc(k) + '">' + esc(k) + '</span><span class="trk"><i style="width:' + Math.round(n / max * 100) + '%"></i></span><span class="n">' + n + '</span></div>'
+    ).join("") || '<div class="empty-lane">No data yet</div>') + '</div>';
+  }
+  async function loadListeners(){
+    $("#listeners-body").innerHTML = '<tr><td colspan="10" class="empty-lane">Loading…</td></tr>';
+    const { data, error } = await fetchAll("listener_sessions", "*", { col: "last_seen", asc: false });
+    if (error) { $("#listeners-body").innerHTML = '<tr><td colspan="10" class="empty-lane">Couldn\'t load: ' + esc(error.message) + ' (have you run supabase-analytics.sql?)</td></tr>'; $("#listener-cards").innerHTML = ""; $("#listener-breakdowns").innerHTML = ""; return; }
+    listenerRows = data;
+    const now = Date.now(), within = ms => data.filter(r => now - new Date(r.last_seen).getTime() <= ms).length;
+    const installed = data.filter(r => r.installed).length;
+    $("#listener-cards").innerHTML =
+      '<div class="card live"><b>' + within(120000) + '</b><span>Live now</span></div>' +
+      '<div class="card"><b>' + within(86400000) + '</b><span>Last 24 hours</span></div>' +
+      '<div class="card"><b>' + within(7 * 86400000) + '</b><span>Last 7 days</span></div>' +
+      '<div class="card"><b>' + data.length + '</b><span>All time</span></div>' +
+      '<div class="card"><b>' + (data.length ? Math.round(installed / data.length * 100) : 0) + '%</b><span>Installed app</span></div>' +
+      '<div class="card"><b>' + new Set(data.map(r => r.ip_hash).filter(Boolean)).size + '</b><span>Unique networks</span></div>';
+    $("#listener-breakdowns").innerHTML =
+      bars("Country", data.map(r => r.country)) + bars("Device", data.map(r => r.device_type)) + bars("System", data.map(r => r.os)) +
+      bars("Browser", data.map(r => r.browser)) + bars("Lane", data.map(r => r.lane)) +
+      bars("Time zone", data.map(r => r.tz)) + bars("Screen", data.map(r => r.screen));
+    $("#listeners-body").innerHTML = data.slice(0, 40).map(r =>
+      '<tr><td>' + esc(ago(r.last_seen)) + '</td><td>' + esc(r.country || "—") + '</td><td>' + esc(r.device_type) + '</td><td>' + esc(r.os) + '</td><td>' + esc(r.browser) + '</td>' +
+      '<td>' + (r.installed ? "installed" : "browser") + '</td><td>' + esc(r.screen) + '</td><td>' + esc(r.lane) + '</td>' +
+      '<td class="num">' + esc(r.plays) + '</td><td class="num">' + esc(r.visits) + '</td></tr>'
+    ).join("") || '<tr><td colspan="10" class="empty-lane">No listeners recorded yet.</td></tr>';
+  }
+  $("#listeners-refresh").addEventListener("click", loadListeners);
+
+  /* ================= tools ================= */
+  $("#export-tracks").addEventListener("click", async () => {
+    setStatus("Preparing…");
+    try {
+      const rows = await buildLikesRows();
+      rows.sort((a, b) => a.mode.localeCompare(b.mode) || a.position - b.position);
+      downloadCsv("night-race-tracks.csv", [["Lane","Position","Song","Artist","Intro","Likes","Dislikes","Storage path"]]
+        .concat(rows.map(r => [r.mode, r.position, r.title, r.artist, r.intro ? "yes" : "", r.up, r.down, r.path])));
+      setStatus("Tracks exported.");
+    } catch(e) { setStatus("Export failed: " + e.message, true); }
+  });
+  $("#export-listeners").addEventListener("click", async () => {
+    setStatus("Preparing…");
+    const { data, error } = await fetchAll("listener_sessions", "*", { col: "last_seen", asc: false });
+    if (error) { setStatus("Export failed: " + error.message, true); return; }
+    downloadCsv("night-race-listeners.csv", [["First seen","Last seen","Visits","Country","Device","System","Browser","Installed","Screen","Language","Time zone","Lane","Plays"]]
+      .concat(data.map(r => [r.first_seen, r.last_seen, r.visits, r.country, r.device_type, r.os, r.browser, r.installed ? "yes" : "no", r.screen, r.lang, r.tz, r.lane, r.plays])));
+    setStatus("Listeners exported.");
+  });
+  $("#clear-old").addEventListener("click", async () => {
+    if (!confirm("Delete listener rows not seen for 30 days? This can't be undone.")) return;
+    const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
+    const { error, count } = await supa.from("listener_sessions").delete({ count: "exact" }).lt("last_seen", cutoff);
+    setStatus(error ? "Clear failed: " + error.message : (count || 0) + " old listener rows deleted.", !!error);
+  });
+
+  /* ================= overview ================= */
+  async function loadOverview(){
+    $("#overview-cards").innerHTML = '<div class="empty-lane">Loading…</div>'; $("#overview-panels").innerHTML = "";
+    try {
+      const [rows, ses] = await Promise.all([buildLikesRows(), fetchAll("listener_sessions", "last_seen,country,device_type,installed,plays")]);
+      const lanes = { slow: 0, cool: 0, hype: 0 }; rows.forEach(r => { if (lanes[r.mode] != null) lanes[r.mode]++; });
+      const up = rows.reduce((a, r) => a + r.up, 0), down = rows.reduce((a, r) => a + r.down, 0);
+      const sd = ses.error ? [] : ses.data, now = Date.now(), within = ms => sd.filter(r => now - new Date(r.last_seen).getTime() <= ms).length;
+      const plays = sd.reduce((a, r) => a + (r.plays || 0), 0);
+      $("#overview-cards").innerHTML =
+        '<div class="card live"><b>' + within(120000) + '</b><span>Live now</span></div>' +
+        '<div class="card"><b>' + within(86400000) + '</b><span>Listeners, 24 h</span></div>' +
+        '<div class="card"><b>' + rows.length + '</b><span>Songs</span></div>' +
+        '<div class="card"><b>' + plays + '</b><span>Songs played</span></div>' +
+        '<div class="card"><b>' + up + '</b><span>Likes</span></div>' +
+        '<div class="card"><b>' + down + '</b><span>Dislikes</span></div>';
+      const top = rows.filter(r => r.up + r.down > 0).sort((a, b) => b.net - a.net).slice(0, 5);
+      const worst = rows.filter(r => r.down > 0).sort((a, b) => a.net - b.net).slice(0, 5);
+      const list = (title, arr, fmt) => '<div class="panel"><h3>' + title + '</h3>' + (arr.length ? arr.map(r =>
+        '<div class="bar-row" style="grid-template-columns:1fr auto"><span class="lbl" title="' + esc(r.title) + '">' + esc(r.title) + ' <span style="color:var(--muted)">· ' + esc(r.artist || "—") + '</span></span><span class="n">' + fmt(r) + '</span></div>'
+      ).join("") : '<div class="empty-lane">No votes yet</div>') + '</div>';
+      $("#overview-panels").innerHTML =
+        bars("Songs per lane", rows.map(r => r.mode)) +
+        list("Most liked", top, r => (r.net > 0 ? "+" : "") + r.net) +
+        list("Most disliked", worst, r => "👍" + r.up + " 👎" + r.down) +
+        bars("Country", sd.map(r => r.country)) + bars("Device", sd.map(r => r.device_type));
+    } catch(e) { $("#overview-cards").innerHTML = '<div class="empty-lane">Couldn\'t load: ' + esc(e.message) + '</div>'; }
+  }
+  $("#overview-refresh").addEventListener("click", loadOverview);
+
+  /* ================= downloader launcher ================= */
+  try { $("#fetch-url").value = localStorage.getItem("nightrace.fetchurl") || ""; } catch(e){}
+  $("#fetch-open").addEventListener("click", () => {
+    const u = $("#fetch-url").value.trim();
+    if (!/^https?:\/\//i.test(u)) { setStatus("Enter the full address, starting with http:// or https://", true); return; }
+    try { localStorage.setItem("nightrace.fetchurl", u); } catch(e){}
+    window.open(u, "_blank", "noopener");
   });
 
   checkSession();
