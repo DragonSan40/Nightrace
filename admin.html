@@ -143,6 +143,20 @@
   .toolrow { display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .8rem 1rem; margin-bottom: .5rem; }
   .toolrow p { margin: 0; font-size: .78rem; color: var(--muted); }
   .toolrow strong { display: block; color: var(--ink); font-size: .85rem; margin-bottom: .15rem; font-weight: 600; }
+  .lic-badge { font-size: .66rem; padding: .1rem .45rem; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); margin-left: .5rem; white-space: nowrap; vertical-align: middle; }
+  .lic-badge.ok { color: #3FC96B; border-color: rgba(63,201,107,.5); }
+  .lic-badge.bad { color: var(--danger); border-color: var(--danger); background: var(--danger-dim); }
+  .track button.lic.has { color: #3FC96B; border-color: rgba(63,201,107,.5); }
+  .lic-editor { background: var(--bg); border: 1px solid var(--accent); border-radius: 8px; padding: .8rem; margin: -.2rem 0 .6rem; display: grid; gap: .5rem; }
+  .lic-editor label { font-size: .72rem; color: var(--muted); display: grid; gap: .25rem; }
+  .lic-editor input, .lic-editor select, .lic-editor textarea, .artist-field select {
+    width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 6px;
+    padding: .45rem .6rem; font-family: inherit; font-size: .8rem; }
+  .lic-editor textarea { min-height: 3.4rem; resize: vertical; }
+  .lic-editor .row { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .lic-editor .row > label { flex: 1; min-width: 180px; }
+  .lic-editor .actions { display: flex; gap: .5rem; justify-content: flex-end; }
+  .lic-warn { color: #E8A33D; font-size: .74rem; margin: 0; }
   #status { position: fixed; bottom: 1rem; right: 1rem; font-size: .78rem; color: var(--muted); }
 </style>
 </head>
@@ -193,6 +207,15 @@
       <input id="upload-artist" type="text" placeholder="e.g. Kavinsky">
     </div>
 
+    <div class="artist-field">
+      <label for="upload-license">Licence for the next upload (required for new songs)</label>
+      <select id="upload-license"><option value="">— choose a licence —</option></select>
+    </div>
+    <div class="artist-field">
+      <label for="upload-source">Track page link where you confirmed the licence (optional here, you can add it later)</label>
+      <input id="upload-source" type="url" placeholder="https://…">
+    </div>
+
     <div class="dropzone" id="dropzone">
       Drop MP3s here, or click to choose files — uploads go to the selected lane above
       <input id="picker" type="file" accept="audio/*" multiple>
@@ -203,7 +226,10 @@
     <div class="lane-head">
       <h2 id="lane-title">Slow — tracks</h2>
     </div>
-    <div class="bulkbar" id="bulkbar">
+    <div class="bulkbar" id="bulkbar" style="margin-bottom:.3rem">
+      <label class="selall"><input type="checkbox" id="only-missing"> Show only songs missing a licence</label>
+    </div>
+    <div class="bulkbar" id="bulkbar2">
       <label class="selall"><input type="checkbox" id="select-all"> Select all</label>
       <button id="delete-selected" class="btn danger" type="button" disabled>Delete selected (0)</button>
     </div>
@@ -244,6 +270,8 @@
 
     <section class="view" id="v-tools">
       <div class="toolrow"><p><strong>Export tracks (CSV)</strong>Every track with lane, order, likes and dislikes. Opens in Excel or Sheets.</p><button class="btn" id="export-tracks" type="button">Download</button></div>
+      <div class="toolrow"><p><strong>Credits list (text)</strong>Ready-to-paste credit lines for every song that needs one (CC BY, written permission). Use it for the credits page.</p><button class="btn" id="export-credits" type="button">Download</button></div>
+      <div class="toolrow"><p><strong>Licence report (CSV)</strong>Every song with its licence, proof link and check date. Keep a copy as your paper trail.</p><button class="btn" id="export-licences" type="button">Download</button></div>
       <div class="toolrow"><p><strong>Export listeners (CSV)</strong>The anonymous listener rows shown on the Listeners page.</p><button class="btn" id="export-listeners" type="button">Download</button></div>
       <div class="toolrow"><p><strong>Clear old listener stats</strong>Deletes listener rows not seen for 30 days. Good housekeeping for privacy.</p><button class="btn danger" id="clear-old" type="button">Clear</button></div>
     </section>
@@ -305,6 +333,20 @@
     loadTracks();
   }));
 
+  /* ================= licences ================= */
+  const LICENSES = [
+    { v: "CC0", label: "CC0 / public domain dedication", url: "https://creativecommons.org/publicdomain/zero/1.0/" },
+    { v: "Public domain", label: "Public domain", url: "" },
+    { v: "CC BY 4.0", label: "CC BY 4.0 (credit required)", url: "https://creativecommons.org/licenses/by/4.0/" },
+    { v: "CC BY 3.0", label: "CC BY 3.0 (credit required)", url: "https://creativecommons.org/licenses/by/3.0/" },
+    { v: "Written permission", label: "Written permission from the artist", url: "" },
+    { v: "Other — checked", label: "Other (I checked it allows commercial use)", url: "" }
+  ];
+  const needsCredit = v => /^CC BY/.test(v || "") || v === "Written permission" || /^Other/.test(v || "");
+  LICENSES.forEach(l => { const o = document.createElement("option"); o.value = l.v; o.textContent = l.label; $("#upload-license").appendChild(o); });
+  const licUrl = v => (LICENSES.find(l => l.v === v) || {}).url || "";
+  let licenseColumns = true;   // flips to false if the SQL hasn't been run yet
+
   /* ================= upload ================= */
   const dz = $("#dropzone"), picker = $("#picker");
   dz.addEventListener("click", () => picker.click());
@@ -314,6 +356,11 @@
   dz.addEventListener("drop", e => { if (e.dataTransfer?.files) handleFiles(e.dataTransfer.files); });
 
   function handleFiles(fileList){
+    if (!$("#upload-license").value) {
+      setStatus("Choose a licence for this upload first. Nothing was uploaded.", true);
+      $("#upload-license").focus();
+      return;
+    }
     for (const f of fileList) {
       if (!f.type.startsWith("audio/") && !/\.(mp3|m4a|ogg|wav|flac)$/i.test(f.name)) continue;
       uploadOne(f);
@@ -375,12 +422,23 @@
         row.classList.add("done");
         row.querySelector(".pct").textContent = "done";
         const { count } = await supa.from("tracks").select("id", { count: "exact", head: true }).eq("mode", mode);
-        await supa.from("tracks").insert({
+        const base = {
           mode, path,
           title: row.querySelector(".up-title").value.trim() || titleFromFilename(file.name),
           artist: row.querySelector(".up-artist").value.trim(),   // read now, not at row-creation — respects edits made during upload
           position: (count || 0) + 1
-        });
+        };
+        const lic = $("#upload-license").value, src = $("#upload-source").value.trim();
+        let { error: insErr } = await supa.from("tracks").insert(lic || src ? {
+          ...base, license: lic || null, source_url: src || null, license_url: licUrl(lic) || null,
+          attribution: lic && needsCredit(lic) ? '"' + base.title + '"' + (base.artist ? " by " + base.artist : "") + (src ? " (" + src + ")" : "") + ", licensed under " + lic + "." : null,
+          license_checked: new Date().toISOString().slice(0, 10)
+        } : base);
+        if (insErr && /column|schema cache/i.test(insErr.message || "")) {     // licence SQL not run yet: save the song anyway
+          licenseColumns = false;
+          setStatus("Song saved, but licence info was NOT saved. Run supabase-licenses.sql first.", true);
+          ({ error: insErr } = await supa.from("tracks").insert(base));
+        }
         setTimeout(() => row.remove(), 1500);
         loadTracks();
       } else {
@@ -428,11 +486,17 @@
         '<button class="intro-flag' + (t.intro ? ' on' : '') + '" title="Toggle intro track">★</button>' +
         '<button class="up" title="Move up" ' + (i === 0 ? "disabled" : "") + '>↑</button>' +
         '<button class="down" title="Move down" ' + (i === data.length - 1 ? "disabled" : "") + '>↓</button>' +
+        '<button class="lic' + (t.license ? ' has' : '') + '" title="Licence and credit">§</button>' +
         '<button class="rename" title="Rename">✎</button>' +
         '<button class="move" title="Move to another lane">⇄</button>' +
         '<button class="danger del" title="Delete">✕</button>';
       row.querySelector(".ttitle").textContent = t.title;
       row.querySelector(".artist").textContent = t.artist || "—";
+      const lb = document.createElement("span");
+      lb.className = "lic-badge " + (t.license ? "ok" : "bad");
+      lb.textContent = t.license ? t.license : "no licence";
+      row.querySelector(".ttitle").appendChild(lb);
+      if ($("#only-missing").checked && t.license) row.style.display = "none";
       const tv = tally[t.id];
       if (tv) { const v = document.createElement("span"); v.className = "votes"; v.textContent = "👍 " + tv.up + "  👎 " + tv.down; row.querySelector(".ttitle").appendChild(v); }
 
@@ -446,6 +510,48 @@
       row.querySelector(".intro-flag").addEventListener("click", async () => {
         await supa.from("tracks").update({ intro: !t.intro }).eq("id", t.id);
         loadTracks();
+      });
+      row.querySelector(".lic").addEventListener("click", () => {
+        const open = row.nextElementSibling;
+        if (open && open.classList.contains("lic-editor")) { open.remove(); return; }
+        const ed = document.createElement("div");
+        ed.className = "lic-editor";
+        ed.innerHTML =
+          '<p class="lic-warn">Open the track\'s own page and confirm the licence before you save it here.</p>' +
+          '<div class="row"><label>Licence<select class="f-lic"><option value="">— choose —</option>' +
+            LICENSES.map(l => '<option value="' + esc(l.v) + '">' + esc(l.label) + '</option>').join("") + '</select></label>' +
+          '<label>Track page link (proof)<input class="f-src" type="url" placeholder="https://…"></label></div>' +
+          '<div class="row"><label>Licence link<input class="f-lurl" type="url" placeholder="https://creativecommons.org/…"></label>' +
+          '<label>Last checked<input class="f-date" type="date"></label></div>' +
+          '<label>Credit text shown to listeners<textarea class="f-attr" placeholder=\'"Song" by Artist (link), licensed under CC BY 4.0.\'></textarea></label>' +
+          '<div class="actions"><button type="button" class="btn f-auto">Auto-fill credit</button><button type="button" class="btn f-cancel">Cancel</button><button type="button" class="btn f-save">Save</button></div>';
+        ed.querySelector(".f-lic").value = t.license || "";
+        ed.querySelector(".f-src").value = t.source_url || "";
+        ed.querySelector(".f-lurl").value = t.license_url || "";
+        ed.querySelector(".f-date").value = t.license_checked || "";
+        ed.querySelector(".f-attr").value = t.attribution || "";
+        ed.querySelector(".f-lic").addEventListener("change", e => { if (!ed.querySelector(".f-lurl").value) ed.querySelector(".f-lurl").value = licUrl(e.target.value); });
+        ed.querySelector(".f-auto").addEventListener("click", () => {
+          const lic = ed.querySelector(".f-lic").value, src = ed.querySelector(".f-src").value.trim();
+          ed.querySelector(".f-attr").value = '"' + t.title + '"' + (t.artist ? " by " + t.artist : "") + (src ? " (" + src + ")" : "") + (lic ? ", licensed under " + lic : "") + ".";
+        });
+        ed.querySelector(".f-cancel").addEventListener("click", () => ed.remove());
+        ed.querySelector(".f-save").addEventListener("click", async () => {
+          const lic = ed.querySelector(".f-lic").value;
+          if (!lic) { setStatus("Choose a licence first.", true); return; }
+          const patch = {
+            license: lic, source_url: ed.querySelector(".f-src").value.trim() || null,
+            license_url: ed.querySelector(".f-lurl").value.trim() || null,
+            attribution: ed.querySelector(".f-attr").value.trim() || null,
+            license_checked: ed.querySelector(".f-date").value || new Date().toISOString().slice(0, 10)
+          };
+          if (needsCredit(lic) && !patch.attribution) { setStatus("This licence needs a credit line. Use Auto-fill credit.", true); return; }
+          const { error } = await supa.from("tracks").update(patch).eq("id", t.id);
+          if (error) { setStatus(/column|schema cache/i.test(error.message) ? "Run supabase-licenses.sql first, then try again." : "Save failed: " + error.message, true); return; }
+          setStatus("Licence saved for " + t.title + ".");
+          loadTracks();
+        });
+        row.after(ed);
       });
       row.querySelector(".rename").addEventListener("click", async () => {
         const title = prompt("Title:", t.title); if (title === null) return;
@@ -493,6 +599,7 @@
   }
 
   /* ================= bulk actions ================= */
+  $("#only-missing").addEventListener("change", loadTracks);
   $("#select-all").addEventListener("change", e => {
     const checked = e.target.checked;
     if (checked) currentTracks.forEach(t => selectedIds.add(t.id));
@@ -590,7 +697,7 @@
   /* ================= likes ================= */
   let likesRows = [];
   async function buildLikesRows(){
-    const [tr, tally] = await Promise.all([fetchAll("tracks", "id,title,artist,mode,position,path,intro"), voteTally()]);
+    const [tr, tally] = await Promise.all([fetchAll("tracks", "*"), voteTally()]);
     if (tr.error) throw tr.error;
     return tr.data.map(t => { const v = tally[t.id] || { up: 0, down: 0 }; return { ...t, up: v.up, down: v.down, net: v.up - v.down }; });
   }
@@ -667,6 +774,26 @@
       setStatus("Tracks exported.");
     } catch(e) { setStatus("Export failed: " + e.message, true); }
   });
+  $("#export-credits").addEventListener("click", async () => {
+    try {
+      const rows = (await buildLikesRows()).filter(r => r.license && needsCredit(r.license));
+      rows.sort((a, b) => a.mode.localeCompare(b.mode) || a.position - b.position);
+      const text = rows.map(r => r.attribution || ('"' + r.title + '" by ' + (r.artist || "unknown") + ", licensed under " + r.license + ".")).join("\r\n");
+      const blob = new Blob([text || "No songs need a credit line yet."], { type: "text/plain;charset=utf-8" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "night-race-credits.txt"; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      setStatus(rows.length + " credit lines exported.");
+    } catch(e) { setStatus("Export failed: " + e.message, true); }
+  });
+  $("#export-licences").addEventListener("click", async () => {
+    try {
+      const rows = await buildLikesRows();
+      rows.sort((a, b) => a.mode.localeCompare(b.mode) || a.position - b.position);
+      downloadCsv("night-race-licences.csv", [["Lane","Song","Artist","Licence","Track page","Licence link","Credit text","Last checked"]]
+        .concat(rows.map(r => [r.mode, r.title, r.artist, r.license || "MISSING", r.source_url, r.license_url, r.attribution, r.license_checked])));
+      setStatus("Licence report exported.");
+    } catch(e) { setStatus("Export failed: " + e.message, true); }
+  });
   $("#export-listeners").addEventListener("click", async () => {
     setStatus("Preparing…");
     const { data, error } = await fetchAll("listener_sessions", "*", { col: "last_seen", asc: false });
@@ -695,6 +822,7 @@
         '<div class="card live"><b>' + within(120000) + '</b><span>Live now</span></div>' +
         '<div class="card"><b>' + within(86400000) + '</b><span>Listeners, 24 h</span></div>' +
         '<div class="card"><b>' + rows.length + '</b><span>Songs</span></div>' +
+        '<div class="card"' + (rows.some(r => !r.license) ? ' style="border-color:var(--danger)"' : '') + '><b' + (rows.some(r => !r.license) ? ' style="color:var(--danger)"' : '') + '>' + rows.filter(r => !r.license).length + '</b><span>Missing licence</span></div>' +
         '<div class="card"><b>' + plays + '</b><span>Songs played</span></div>' +
         '<div class="card"><b>' + up + '</b><span>Likes</span></div>' +
         '<div class="card"><b>' + down + '</b><span>Dislikes</span></div>';
