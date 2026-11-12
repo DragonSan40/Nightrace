@@ -331,6 +331,112 @@
   .keys-list dt { display: flex; gap: .3rem; flex-wrap: wrap; }
   .keys-list dd { margin: 0; font-size: .78rem; color: var(--muted-bright); }
   kbd { font-family: inherit; font-size: .68rem; min-width: 1.7em; text-align: center; padding: .2rem .5rem; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; background: rgba(255,255,255,.04); color: var(--ink); }
+  .np-panel { position: relative; }
+  .fav-btn {
+    position: absolute; top: -15px; right: -15px; width: 34px; height: 34px; border-radius: 50%;
+    background: #0B0E15; border: 1px solid rgba(255,255,255,.1); color: var(--muted-bright);
+    font-size: 1.05rem; line-height: 1; cursor: pointer; transition: color .15s ease, border-color .15s ease, background .15s ease, transform .15s ease;
+  }
+  .fav-btn:hover:not(:disabled) { color: var(--ink); border-color: var(--accent); }
+  .fav-btn[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); transform: scale(1.06); }
+  .fav-btn:disabled { opacity: .35; cursor: default; }
+  .fav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ===== Favourites: a car head unit (receiver in the dash) ===== */
+  #favs.sheet {
+    --lcd: var(--accent); --metal: #b8bec9; --metal-d: #6d7480;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,.028) 0 1px, transparent 1px 3px),
+      linear-gradient(180deg, #2c3037 0, #1a1d22 9%, #101216 40%, #0a0b0e);
+    border: 1px solid #3b4049; border-bottom: 0; border-radius: 20px 20px 0 0;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.2), inset 0 0 0 1px rgba(0,0,0,.6), 0 -10px 40px rgba(0,0,0,.7);
+    color: #cfd3da; padding: 1rem 1.1rem 1.6rem;
+  }
+  #favs .sheet-head h2 { font-size: .7rem; font-weight: 600; letter-spacing: .34em; color: var(--metal); text-shadow: 0 1px 0 #000; }
+  #favs .sheet-head h2::after { content: "  ·  FM / FAV"; color: var(--metal-d); }
+  #favs .sheet-close { color: var(--metal); font-size: .66rem; letter-spacing: .16em; text-transform: uppercase; border: 1px solid #3b4049; border-radius: 6px; padding: .35rem .6rem; background: linear-gradient(180deg, #2a2e35, #15181d); }
+  #favs .sheet-close::before { content: "⏏ "; }
+  #favs .sheet-close:hover { color: #fff; border-color: var(--lcd); }
+  .slot { height: 7px; margin: .7rem 4% .9rem; border-radius: 4px; background: #000; box-shadow: inset 0 1px 3px rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.1); position: relative; }
+  .slot::after { content: ""; position: absolute; left: 6%; right: 6%; top: 2px; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent); }
+  .unit { display: flex; align-items: center; gap: .7rem; }
+  .knob-col { flex: 0 0 auto; display: grid; justify-items: center; gap: .3rem; }
+  .knob-label { font-size: .52rem; letter-spacing: .24em; color: var(--metal-d); }
+  .dial-knob {
+    width: 54px; height: 54px; border-radius: 50%; position: relative; transition: transform .7s cubic-bezier(.3,.7,.2,1);
+    background: repeating-conic-gradient(from 0deg, #4a4f59 0 5deg, #1b1e23 5deg 10deg);
+    box-shadow: 0 4px 10px rgba(0,0,0,.7), 0 0 0 2px #0a0b0e, 0 0 0 3px #3b4049;
+  }
+  .dial-knob::before { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, #6a707c, #23262c 62%, #121418); box-shadow: inset 0 1px 1px rgba(255,255,255,.35); }
+  .dial-knob::after { content: ""; position: absolute; left: 50%; top: 9px; width: 3px; height: 10px; margin-left: -1.5px; border-radius: 2px; background: var(--lcd); box-shadow: 0 0 6px var(--lcd); }
+  .lcd {
+    flex: 1; min-width: 0; position: relative; overflow: hidden; border-radius: 9px; padding: .45rem .75rem .6rem;
+    background: linear-gradient(180deg, #03060a, #080d13); border: 2px solid #000;
+    box-shadow: inset 0 0 24px rgba(0,0,0,.95), 0 0 0 1px #3b4049, 0 0 0 3px #0a0b0e;
+  }
+  .lcd::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, rgba(255,255,255,.07) 0 26%, transparent 26.4%), repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px); }
+  .lcd-top { display: flex; gap: .7rem; align-items: center; font-size: .56rem; letter-spacing: .16em; color: var(--lcd); opacity: .75; }
+  .lcd-top .sp { flex: 1; }
+  .lcd-top b { font-weight: 400; padding: 0 .3rem; border: 1px solid currentColor; border-radius: 2px; }
+  .readout { text-align: center; margin-top: .05rem; }
+  #fav-freq { font-family: ui-monospace, "Cascadia Mono", "Courier New", monospace; font-size: 2.3rem; font-weight: 700; color: var(--lcd); text-shadow: 0 0 10px var(--lcd); letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+  .readout small { color: var(--lcd); opacity: .7; margin-left: .35rem; font-size: .66rem; letter-spacing: .18em; }
+  #fav-station { text-align: center; color: var(--lcd); font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .92; text-shadow: 0 0 6px var(--lcd); }
+  .dial { position: relative; margin-top: .45rem; height: 30px; padding: 0 8px; }
+  .dial .band { display: none; }
+  #fav-dial { position: relative; height: 100%; }
+  #fav-dial::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 9px; background: repeating-linear-gradient(90deg, var(--lcd) 0 1px, transparent 1px 2.5%); opacity: .45; }
+  #fav-dial::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 15px; background: repeating-linear-gradient(90deg, var(--lcd) 0 2px, transparent 2px 10%); opacity: .55; }
+  #fav-dial .scale b { position: absolute; top: 0; transform: translateX(-50%); font-size: .54rem; font-weight: 400; color: var(--lcd); opacity: .75; letter-spacing: .06em; }
+  #fav-dial .stn { position: absolute; bottom: 0; width: 3px; height: 62%; margin-left: -1px; background: var(--lcd); border-radius: 1px 1px 0 0; opacity: .5; }
+  #fav-dial .stn.on { height: 76%; opacity: 1; box-shadow: 0 0 8px var(--lcd); background: #fff; }
+  #fav-needle { position: absolute; top: 9px; bottom: 0; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 8px var(--lcd), 0 0 2px #fff; transition: left .7s cubic-bezier(.3,.7,.2,1), opacity .3s ease; z-index: 2; }
+  .seek-row { display: flex; gap: .6rem; justify-content: center; margin: .9rem 0 .7rem; }
+  .seek-key, .pre-key {
+    border: 1px solid #000; border-top-color: rgba(255,255,255,.14); border-radius: 7px; cursor: pointer; color: #cfd3da; font-family: inherit;
+    background: linear-gradient(180deg, #2b2f36, #15181d); box-shadow: 0 2px 0 #000, 0 4px 8px rgba(0,0,0,.5); position: relative;
+    transition: transform .08s ease, box-shadow .08s ease, color .15s ease;
+  }
+  .seek-key { flex: 1; max-width: 9.5rem; height: 36px; font-size: .62rem; letter-spacing: .2em; text-transform: uppercase; }
+  .seek-key:active:not(:disabled), .pre-key:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 0 0 #000, 0 1px 3px rgba(0,0,0,.5); }
+  .seek-key:hover:not(:disabled), .pre-key:hover:not(:disabled) { color: #fff; }
+  .seek-key:disabled { opacity: .35; cursor: default; }
+  .pre-keys { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; margin-bottom: .8rem; }
+  .pre-key { width: 48px; height: 38px; font-weight: 700; font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .pre-key::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 5px; height: 2px; border-radius: 1px; background: #353a43; }
+  .pre-key.on { color: var(--lcd); text-shadow: 0 0 8px var(--lcd); }
+  .pre-key.on::after { background: var(--lcd); box-shadow: 0 0 7px var(--lcd); }
+  .pre-key:disabled { opacity: .35; cursor: default; }
+  .pre-key:focus-visible, .seek-key:focus-visible, .stn-main:focus-visible, .stn-x:focus-visible, #fav-search:focus-visible { outline: 2px solid var(--lcd); outline-offset: 2px; }
+  #fav-search {
+    width: 100%; background: linear-gradient(180deg, #03060a, #080d13); border: 2px solid #000; border-radius: 8px; padding: .6rem .8rem; color: var(--lcd);
+    font-family: ui-monospace, "Cascadia Mono", "Courier New", monospace; font-size: .86rem; letter-spacing: .04em; box-shadow: inset 0 0 14px rgba(0,0,0,.9), 0 0 0 1px #3b4049;
+  }
+  #fav-search::placeholder { color: var(--lcd); opacity: .45; text-transform: uppercase; letter-spacing: .12em; font-size: .78em; }
+  .stations {
+    display: grid; gap: 0; max-height: 32vh; overflow-y: auto; margin-top: .7rem; padding: .3rem; border-radius: 9px; border: 2px solid #000;
+    background: #07090d; box-shadow: inset 0 0 18px rgba(0,0,0,.9), 0 0 0 1px #2b2f36;
+  }
+  .stn-row { display: flex; align-items: stretch; gap: .3rem; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .stn-row:last-child { border-bottom: 0; }
+  .stn-main {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: .7rem; text-align: left; cursor: pointer; padding: .5rem .6rem; border-radius: 5px;
+    background: transparent; border: 0; border-left: 3px solid transparent; color: #cfd3da; font-family: inherit;
+  }
+  .stn-main:hover:not(:disabled) { background: rgba(255,255,255,.06); }
+  .stn-row.on .stn-main { background: rgba(255,255,255,.07); border-left-color: var(--lcd); box-shadow: inset 12px 0 18px -14px var(--lcd); }
+  .stn-main .f { font-family: ui-monospace, "Cascadia Mono", "Courier New", monospace; color: var(--lcd); font-size: .85rem; min-width: 3.6rem; text-shadow: 0 0 6px var(--lcd); }
+  .stn-main .t { flex: 1; min-width: 0; display: grid; }
+  .stn-main .t b { font-size: .88rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stn-main .t i { font-size: .72rem; opacity: .6; font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stn-main .l { font-size: .58rem; letter-spacing: .16em; text-transform: uppercase; color: var(--metal-d); }
+  .stn-row.gone .stn-main { opacity: .4; cursor: default; }
+  .stn-x { width: 34px; border-radius: 5px; background: transparent; border: 0; color: var(--metal-d); cursor: pointer; font-size: .78rem; }
+  .stn-x:hover { color: #ff6b6b; }
+  .stn-empty { color: #cfd3da; opacity: .6; font-size: .82rem; text-align: center; padding: .9rem .4rem; }
+  #favs .eq-note { color: var(--metal-d); font-style: normal; }
+  @media (max-width: 480px) { .dial-knob { width: 42px; height: 42px; } .dial-knob::before { inset: 5px; } .dial-knob::after { top: 7px; height: 8px; } #fav-freq { font-size: 1.8rem; } .pre-key { width: 42px; } .unit { gap: .5rem; } }
+
   #sheet-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(4,6,10,.62); opacity: 0; pointer-events: none; transition: opacity .25s ease; }
   #sheet-backdrop.open { opacity: 1; pointer-events: auto; }
   .sheet {
@@ -472,6 +578,7 @@
     </svg>
 
     <div class="np-panel">
+      <button type="button" class="fav-btn" id="fav" aria-pressed="false" aria-label="Save to Favourites" title="Save to Favourites (F)" disabled>♡</button>
       <div class="np-mode" id="np-mode">slow</div>
       <h1 class="np-title" id="np-title">Warming up…</h1>
       <div class="np-sub" id="np-sub">Tracks for this lane are on the way</div>
@@ -526,6 +633,7 @@
       </button>
     </div>
     <div class="dock">
+      <button id="favs-open" type="button" aria-haspopup="dialog" aria-controls="favs">📻 Favs<span id="fav-count"></span></button>
       <button id="garage-open" type="button" aria-haspopup="dialog" aria-controls="garage">🛠 Garage</button>
       <button id="tuning-open" type="button" aria-haspopup="dialog" aria-controls="tuning">🎚 Tuning</button>
       <button id="keys-open" type="button" class="desk-only" aria-haspopup="dialog" aria-controls="keys" title="Keyboard shortcuts (?)">⌨ Keys</button>
@@ -658,6 +766,35 @@
   <button type="button" id="eq-reset" class="eq-reset">↺ Reset</button>
 </aside>
 
+<aside id="favs" class="sheet" role="dialog" aria-modal="true" aria-label="Favourites">
+  <div class="sheet-head"><h2>Favourites</h2><button type="button" class="sheet-close" data-close>Close</button></div>
+  <div class="slot" aria-hidden="true"></div>
+  <div class="unit">
+    <div class="knob-col" aria-hidden="true"><span class="dial-knob vol"></span><span class="knob-label">VOL</span></div>
+    <div class="lcd">
+      <div class="lcd-top" aria-hidden="true"><b>FM1</b><span>ST</span><span id="fav-n">♡ 0</span><span class="sp"></span><span>BT</span></div>
+      <div class="readout"><span id="fav-freq">— —.—</span><small>MHz</small></div>
+      <div id="fav-station">No stations saved yet</div>
+      <div class="dial" aria-hidden="true">
+        <span class="band">FM</span>
+        <div id="fav-dial">
+          <div class="scale"><b style="left:0%">88</b><b style="left:20%">92</b><b style="left:40%">96</b><b style="left:60%">100</b><b style="left:80%">104</b><b style="left:100%">108</b></div>
+          <i id="fav-needle" style="left:0%;opacity:.35"></i>
+        </div>
+      </div>
+    </div>
+    <div class="knob-col" aria-hidden="true"><span class="dial-knob tune" id="fav-knob"></span><span class="knob-label">TUNE</span></div>
+  </div>
+  <div class="seek-row">
+    <button type="button" class="seek-key" id="fav-prev" aria-label="Previous saved station">⏮ Seek</button>
+    <button type="button" class="seek-key" id="fav-next" aria-label="Next saved station">Seek ⏭</button>
+  </div>
+  <div class="pre-keys" id="fav-presets" role="group" aria-label="Presets"></div>
+  <input id="fav-search" type="search" placeholder="Find: song, artist or lane…" aria-label="Search your favourites" autocomplete="off">
+  <div class="stations" id="fav-list" role="list"></div>
+  <p class="eq-note">Tap ♡ on any song to add it. Favourites are saved on this device. Clearing your browser data clears them.</p>
+</aside>
+
 <aside id="keys" class="sheet" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
   <div class="sheet-head"><h2>Keys</h2><button type="button" class="sheet-close" data-close>Close</button></div>
   <dl class="keys-list">
@@ -669,6 +806,8 @@
     <dt><kbd>M</kbd></dt><dd>Neutral (mute) and back</dd>
     <dt><kbd>L</kbd></dt><dd>Like: more like this</dd>
     <dt><kbd>D</kbd></dt><dd>Dislike: skip and play less like it</dd>
+    <dt><kbd>F</kbd></dt><dd>Save / remove this song in Favourites</dd>
+    <dt><kbd>V</kbd></dt><dd>Open Favourites</dd>
     <dt><kbd>S</kbd></dt><dd>Shuffle on / off</dd>
     <dt><kbd>R</kbd></dt><dd>Rain level</dd>
     <dt><kbd>G</kbd></dt><dd>Open Garage</dd>
@@ -895,7 +1034,7 @@
   /* ---- persisted settings (per browser, best-effort) ---- */
   const STORE = "nightrace.settings.v1";
   function save(){
-    try { localStorage.setItem(STORE, JSON.stringify({ mode, shuffle, volume: masterVolume, rainLevel, eq, taste })); }
+    try { localStorage.setItem(STORE, JSON.stringify({ mode, shuffle, volume: masterVolume, rainLevel, eq, taste, favs })); }
     catch(e){ /* storage unavailable — settings just won't persist */ }
   }
   function restore(){
@@ -908,6 +1047,10 @@
         const t = {}; let n = 0;
         for (const k in s.taste) { if (n++ > 800) break; if (s.taste[k] === 1 || s.taste[k] === -1) t[k] = s.taste[k]; }
         taste = t;
+      }
+      if (Array.isArray(s.favs)) {
+        favs = s.favs.filter(f => f && typeof f.src === "string" && typeof f.title === "string").slice(0, 200)
+          .map(f => ({ src: f.src, id: f.id || null, title: f.title.slice(0, 200), artist: String(f.artist || "").slice(0, 200), mode: ["slow","cool","hype"].includes(f.mode) ? f.mode : "slow" }));
       }
       if (typeof s.rainLevel === "number") rainLevel = Math.min(3, Math.max(0, s.rainLevel));
       if (s.eq && Array.isArray(s.eq.bands) && s.eq.bands.length === EQ_FREQS.length) {
@@ -1794,6 +1937,92 @@
   }
   setInterval(() => { if (started && decks[activeIdx] && !decks[activeIdx].paused) pingSession(); }, 60000);
 
+  /* ---- Favourites: a personal radio dial, saved on this device ---- */
+  let favs = [];
+  const favsEl = document.getElementById("favs");
+  const laneOf = src => ["slow","cool","hype"].find(m => TRACKS[m].some(q => q.src === src)) || null;
+  const freqOf = src => { let h = 2166136261; for (let i = 0; i < src.length; i++) { h ^= src.charCodeAt(i); h = Math.imul(h, 16777619); } return 88 + ((h >>> 0) % 200) / 10; };   // 88.0 - 107.9, stable per song
+  const isFav = t => !!t && favs.some(f => f.src === t.src);
+  function paintFav(){
+    const b = $("#fav"), on = isFav(shownTrack);
+    b.disabled = !shownTrack;
+    b.setAttribute("aria-pressed", String(on));
+    b.textContent = on ? "♥" : "♡";
+    b.setAttribute("aria-label", on ? "Remove from Favourites" : "Save to Favourites");
+    b.title = on ? "Saved to Favourites (F)" : "Save to Favourites (F)";
+    $("#fav-count").textContent = favs.length ? " (" + favs.length + ")" : "";
+    if (openSheet === favsEl) renderFavs();
+  }
+  function toggleFav(){
+    const t = shownTrack; if (!t || !started) return;
+    const i = favs.findIndex(f => f.src === t.src);
+    if (i >= 0) favs.splice(i, 1);
+    else { if (favs.length >= 200) favs.shift(); favs.push({ src: t.src, id: t.id || null, title: t.title, artist: (t.artist && t.artist !== "—") ? t.artist : "", mode: laneOf(t.src) || mode }); }
+    save(); paintFav();
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
+  function playFav(f, keepOpen){
+    const t = (TRACKS[laneOf(f.src)] || []).find(q => q.src === f.src), m = laneOf(f.src);
+    if (!t || !m) return;
+    if (!keepOpen) setSheet(null);
+    if (m !== mode) setMode(m, t);
+    else {
+      buildOrder(t); rememberPlayed(t);
+      if (!decks[activeIdx].paused && !document.hidden) crossfadeTo(t); else straightLoad(t, true);
+    }
+    if (decks[activeIdx].paused) playPause();
+  }
+  function seekFav(dir){
+    const live = favs.filter(f => laneOf(f.src)).sort((a, b) => freqOf(a.src) - freqOf(b.src));
+    if (!live.length) return;
+    const nowSrc = shownTrack ? shownTrack.src : null;
+    let i = live.findIndex(f => f.src === nowSrc);
+    i = i < 0 ? (dir > 0 ? 0 : live.length - 1) : (i + dir + live.length) % live.length;
+    playFav(live[i], true);
+  }
+  function renderFavs(){
+    const q = ($("#fav-search").value || "").trim().toLowerCase(), nowSrc = shownTrack ? shownTrack.src : null;
+    const dial = $("#fav-dial"), pos = f => (freqOf(f.src) - 88) / 20 * 100;
+    dial.querySelectorAll(".stn").forEach(n => n.remove());
+    favs.forEach(f => { const i = document.createElement("i"); i.className = "stn" + (f.src === nowSrc ? " on" : ""); i.style.left = pos(f) + "%"; dial.appendChild(i); });
+    const cur = favs.find(f => f.src === nowSrc), needle = $("#fav-needle");
+    needle.style.left = (cur ? pos(cur) : 0) + "%"; needle.style.opacity = cur ? 1 : .35;
+    $("#fav-freq").textContent = cur ? freqOf(cur.src).toFixed(1) : "— —.—";
+    $("#fav-station").textContent = cur ? cur.title : (favs.length ? "Pick a station" : "No stations saved yet");
+    $("#fav-n").textContent = "♡ " + favs.length;
+    $("#fav-knob").style.transform = "rotate(" + (cur ? Math.round(pos(cur) / 100 * 270 - 135) : -135) + "deg)";
+    $("#fav-prev").disabled = $("#fav-next").disabled = !favs.some(f => laneOf(f.src));
+    const pre = $("#fav-presets"); pre.innerHTML = "";
+    for (let i = 0; i < 6; i++) {
+      const f = favs[i], b = document.createElement("button");
+      b.type = "button"; b.className = "pre-key" + (f && f.src === nowSrc ? " on" : ""); b.textContent = String(i + 1); b.disabled = !f;
+      if (f) { b.title = f.title; b.setAttribute("aria-label", "Preset " + (i + 1) + ": " + f.title); b.addEventListener("click", () => playFav(f)); }
+      pre.appendChild(b);
+    }
+    const rows = favs.filter(f => !q || (f.title + " " + f.artist + " " + f.mode).toLowerCase().includes(q)).sort((a, b) => freqOf(a.src) - freqOf(b.src));
+    const box = $("#fav-list"); box.innerHTML = "";
+    if (!rows.length) {
+      const e = document.createElement("div"); e.className = "stn-empty";
+      e.textContent = favs.length ? "No station matches that." : "Nothing here yet. Tap the ♡ on a song to add your first station.";
+      box.appendChild(e); return;
+    }
+    rows.forEach(f => {
+      const gone = !laneOf(f.src), row = document.createElement("div");
+      row.className = "stn-row" + (f.src === nowSrc ? " on" : "") + (gone ? " gone" : ""); row.setAttribute("role", "listitem");
+      const main = document.createElement("button"); main.type = "button"; main.className = "stn-main"; main.disabled = gone;
+      const fr = document.createElement("span"); fr.className = "f"; fr.textContent = freqOf(f.src).toFixed(1);
+      const tx = document.createElement("span"); tx.className = "t";
+      const b = document.createElement("b"); b.textContent = gone ? f.title + " (no longer available)" : f.title;
+      const a = document.createElement("i"); a.textContent = f.artist || "—";
+      tx.append(b, a);
+      const ln = document.createElement("span"); ln.className = "l"; ln.textContent = f.mode;
+      main.append(fr, tx, ln);
+      main.addEventListener("click", () => playFav(f));
+      const x = document.createElement("button"); x.type = "button"; x.className = "stn-x"; x.textContent = "✕"; x.title = "Remove"; x.setAttribute("aria-label", "Remove " + f.title);
+      x.addEventListener("click", () => { favs = favs.filter(z => z.src !== f.src); save(); paintFav(); });
+      row.append(main, x); box.appendChild(row);
+    });
+  }
   let shownTrack = null;
   function paintRate(t){
     const lk = $("#like"), dl = $("#dislike");
@@ -1816,6 +2045,7 @@
   function paint(t){
     shownTrack = t || null;
     paintRate(shownTrack);
+    paintFav();
     if (t && t.src !== lastCounted) { lastCounted = t.src; playCount++; lsSet("nightrace.plays", String(playCount)); }
     if (!t){
       $("#np-title").textContent = "Warming up…";
@@ -1906,7 +2136,7 @@
     return 0;
   }
 
-  function setMode(m){
+  function setMode(m, want){
     if (m === mode) return;
     const fromVisual = currentVisualM();     // pick up mid-transition, don't jump back
     modeTransition = { from: fromVisual, to: MODES[m], start: performance.now() };
@@ -1921,10 +2151,11 @@
     const wasPlaying = !active().paused;
     mode = m;
     root.dataset.mode = m;
-    buildOrder();
+    const wantT = want ? list().find(q => q.src === want.src) : null;   // a Favourite tapped from another lane
+    buildOrder(wantT);
 
     if (list().length) {
-      cursor = pickModeEntryCursor();
+      cursor = wantT ? 0 : pickModeEntryCursor();
       const t = list()[order[cursor]];
       rememberPlayed(t);
       if (wasPlaying) {
@@ -2235,6 +2466,11 @@
     sheetBackdrop.classList.toggle("open", !!el);
   }
   document.getElementById("garage-open").addEventListener("click", () => setSheet(document.getElementById("garage")));
+  document.getElementById("favs-open").addEventListener("click", () => { renderFavs(); setSheet(favsEl); });
+  document.getElementById("fav-prev").addEventListener("click", () => seekFav(-1));
+  document.getElementById("fav-next").addEventListener("click", () => seekFav(1));
+  $("#fav").addEventListener("click", toggleFav);
+  $("#fav-search").addEventListener("input", renderFavs);
   document.getElementById("tuning-open").addEventListener("click", () => setSheet(document.getElementById("tuning")));
   document.getElementById("keys-open").addEventListener("click", () => setSheet(document.getElementById("keys")));
   document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => setSheet(null)));
@@ -2276,6 +2512,8 @@
       case "m": case "M": if (curGear > 0) { lastGear = curGear; setGear(0); } else setGear(lastGear || 4); break;
       case "l": case "L": rate(1); break;
       case "d": case "D": rate(-1); break;
+      case "f": case "F": toggleFav(); break;
+      case "v": case "V": renderFavs(); setSheet(favsEl); break;
       case "s": case "S": $("#shuffle").click(); break;
       case "r": case "R": $("#rain").click(); break;
       case "g": case "G": setSheet(document.getElementById("garage")); break;
