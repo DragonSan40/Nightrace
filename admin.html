@@ -157,6 +157,24 @@
   .lic-editor .row > label { flex: 1; min-width: 180px; }
   .lic-editor .actions { display: flex; gap: .5rem; justify-content: flex-end; }
   .lic-warn { color: #E8A33D; font-size: .74rem; margin: 0; }
+  .track button.pv { color: var(--accent); }
+  .track.playing { border-color: var(--accent); background: var(--accent-dim); }
+  .bulkedit { display: none; flex-wrap: wrap; gap: .5rem; align-items: center; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: .6rem .8rem; margin-bottom: .8rem; font-size: .78rem; }
+  .bulkedit select { background: var(--bg); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; padding: .4rem .5rem; font-family: inherit; font-size: .78rem; }
+  .bulkedit .grp { display: flex; gap: .35rem; align-items: center; }
+  .searchbox { width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: .6rem .8rem; font-family: inherit; font-size: .85rem; margin-bottom: .8rem; }
+  .searchbox:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .hbar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: .6rem 0 1rem; }
+  .hbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s ease; }
+  .st-ok { color: #3FC96B; } .st-bad { color: var(--danger); } .st-warn { color: var(--accent); }
+  #pv-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: .8rem; width: min(560px, 94vw); display: none; align-items: center; gap: .6rem;
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 12px; padding: .5rem .8rem; z-index: 20; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+  #pv-bar.on { display: flex; }
+  #pv-bar .pv-title { flex: 0 1 11rem; min-width: 0; font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #pv-bar input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0; }
+  #pv-bar .pv-time { font-size: .7rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #pv-bar button { background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 6px; width: 30px; height: 30px; cursor: pointer; }
+  body.pv-on #status { bottom: 4.6rem; }
   #status { position: fixed; bottom: 1rem; right: 1rem; font-size: .78rem; color: var(--muted); }
 </style>
 </head>
@@ -184,6 +202,7 @@
       <button type="button" data-view="tracks">🎵 Tracks</button>
       <button type="button" data-view="likes">👍 Likes</button>
       <button type="button" data-view="listeners">📱 Listeners</button>
+      <button type="button" data-view="health">🩺 Health</button>
       <button type="button" data-view="downloader">⬇ Downloader</button>
       <button type="button" data-view="tools">🧰 Tools</button>
     </nav>
@@ -223,11 +242,18 @@
 
     <div id="uploads"></div>
 
+    <input id="track-search" class="searchbox" type="search" placeholder="Search every lane by song, artist, licence or lane…" aria-label="Search tracks">
     <div class="lane-head">
       <h2 id="lane-title">Slow — tracks</h2>
     </div>
     <div class="bulkbar" id="bulkbar" style="margin-bottom:.3rem">
       <label class="selall"><input type="checkbox" id="only-missing"> Show only songs missing a licence</label>
+    </div>
+    <div class="bulkedit" id="bulk-edit">
+      <span id="bulk-count" style="color:var(--accent)"></span>
+      <span class="grp"><select id="bulk-lane" aria-label="Move to lane"><option value="">Move to…</option><option value="slow">Slow</option><option value="cool">Cool</option><option value="hype">Hype</option></select><button class="btn" id="bulk-move" type="button">Move</button></span>
+      <span class="grp"><button class="btn" id="bulk-artist" type="button">Set artist</button></span>
+      <span class="grp"><select id="bulk-license" aria-label="Licence"><option value="">Licence…</option></select><button class="btn" id="bulk-apply-license" type="button">Apply licence</button></span>
     </div>
     <div class="bulkbar" id="bulkbar2">
       <label class="selall"><input type="checkbox" id="select-all"> Select all</label>
@@ -240,10 +266,10 @@
       <p class="note">Likes and dislikes from listeners, one vote per browser per song. Songs nobody has voted on are listed last.</p>
       <div class="toolbar">
         <select id="likes-lane" aria-label="Lane"><option value="all">All lanes</option><option value="slow">Slow</option><option value="cool">Cool</option><option value="hype">Hype</option></select>
-        <select id="likes-sort" aria-label="Sort"><option value="top">Most liked first</option><option value="bottom">Least liked first</option><option value="votes">Most votes first</option></select>
+        <select id="likes-sort" aria-label="Sort"><option value="top">Most liked first</option><option value="bottom">Least liked first</option><option value="votes">Most votes first</option><option value="plays">Most played first</option></select>
         <button class="btn" id="likes-refresh" type="button">↻ Refresh</button>
       </div>
-      <div class="tablewrap"><table class="data"><thead><tr><th>Song</th><th>Lane</th><th class="num">👍</th><th class="num">👎</th><th class="num">Net</th></tr></thead><tbody id="likes-body"></tbody></table></div>
+      <div class="tablewrap"><table class="data"><thead><tr><th>Song</th><th>Lane</th><th class="num">👍</th><th class="num">👎</th><th class="num">Net</th><th class="num">▶ Plays</th></tr></thead><tbody id="likes-body"></tbody></table></div>
     </section>
 
     <section class="view" id="v-listeners">
@@ -253,6 +279,15 @@
       <div class="grid2" id="listener-breakdowns"></div>
       <div class="lane-head"><h2>Recent listeners</h2></div>
       <div class="tablewrap"><table class="data"><thead><tr><th>Last seen</th><th>Country</th><th>Device</th><th>System</th><th>Browser</th><th>App</th><th>Screen</th><th>Lane</th><th class="num">Plays</th><th class="num">Visits</th></tr></thead><tbody id="listeners-body"></tbody></table></div>
+    </section>
+
+    <section class="view" id="v-health">
+      <p class="note">Checks every song file: is it there, is it big enough, and does a browser actually load it as audio. It also finds leftover files that no song uses (they waste storage). Run it before you announce anything. It reads your files only; nothing changes until you click a delete button.</p>
+      <div class="toolbar"><button class="btn" id="health-run" type="button">Run health check</button><label class="selall" style="font-size:.78rem;color:var(--muted)"><input type="checkbox" id="health-problems" checked> Show problems only</label><span id="health-when" class="note" style="margin:0"></span></div>
+      <div class="hbar"><i id="health-prog"></i></div>
+      <div class="cards" id="health-cards"></div>
+      <div class="tablewrap"><table class="data"><thead><tr><th>Song</th><th>Lane</th><th>Result</th><th class="num">Length</th><th class="num">Size</th><th></th></tr></thead><tbody id="health-body"><tr><td colspan="6" class="empty-lane">Not run yet.</td></tr></tbody></table></div>
+      <div id="orphans"></div>
     </section>
 
     <section class="view" id="v-downloader">
@@ -278,6 +313,14 @@
   </div>
 </div>
 
+<div id="pv-bar" role="region" aria-label="Preview player">
+  <button id="pv-toggle" type="button" aria-label="Play or pause">⏸</button>
+  <span class="pv-title" id="pv-title"></span>
+  <input id="pv-seek" type="range" min="0" max="1000" value="0" aria-label="Seek">
+  <span class="pv-time" id="pv-time">0:00</span>
+  <button id="pv-close" type="button" aria-label="Close preview">✕</button>
+</div>
+<audio id="pv-audio" preload="none"></audio>
 <div id="status"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.109.0"></script>
@@ -459,18 +502,26 @@
     $("#delete-selected").textContent = "Delete selected (" + n + ")";
     $("#select-all").checked = totalCount > 0 && n === totalCount;
     $("#select-all").indeterminate = n > 0 && n < totalCount;
+    $("#bulk-edit").style.display = n ? "flex" : "none";
+    $("#bulk-count").textContent = n + " selected";
   }
 
   let currentTracks = [];   // the full list currently rendered for this lane — Select All reads this directly
 
   async function loadTracks(){
-    const { data, error } = await supa.from("tracks").select("*").eq("mode", mode).order("position", { ascending: true });
-    const tally = await voteTally();
+    const q = ($("#track-search").value || "").trim().toLowerCase();
+    const searching = q.length > 0;
+    let tq = supa.from("tracks").select("*");
+    if (!searching) tq = tq.eq("mode", mode);
+    let { data, error } = await tq.order(searching ? "mode" : "position", { ascending: true });
+    if (searching && data) data = data.filter(t => [t.title, t.artist, t.license, t.mode].join(" ").toLowerCase().includes(q));
+    $("#lane-title").textContent = searching ? "Search results (" + (data ? data.length : 0) + ")" : document.querySelector(".tab.active").textContent + " — tracks";
+    const [tally, playsMap] = await Promise.all([voteTally(), playTally()]);
     const list = $("#tracklist");
     list.innerHTML = "";
     currentTracks = [];
     if (error) { list.innerHTML = '<div class="empty-lane">Couldn\'t load tracks: ' + error.message + '</div>'; updateBulkbar(0); return; }
-    if (!data.length) { list.innerHTML = '<div class="empty-lane">No tracks in this lane yet.</div>'; updateBulkbar(0); return; }
+    if (!data.length) { list.innerHTML = '<div class="empty-lane">' + (searching ? "Nothing matches that search." : "No tracks in this lane yet.") + '</div>'; updateBulkbar(0); return; }
     currentTracks = data;
 
     // drop any selected ids that no longer exist in this lane's current list
@@ -483,20 +534,26 @@
       row.innerHTML =
         '<input type="checkbox" class="sel">' +
         '<div class="meta"><div class="ttitle"></div><div class="artist"></div></div>' +
+        '<button class="pv" title="Preview">▶</button>' +
         '<button class="intro-flag' + (t.intro ? ' on' : '') + '" title="Toggle intro track">★</button>' +
-        '<button class="up" title="Move up" ' + (i === 0 ? "disabled" : "") + '>↑</button>' +
-        '<button class="down" title="Move down" ' + (i === data.length - 1 ? "disabled" : "") + '>↓</button>' +
+        '<button class="up" title="Move up" ' + (searching || i === 0 ? "disabled" : "") + '>↑</button>' +
+        '<button class="down" title="Move down" ' + (searching || i === data.length - 1 ? "disabled" : "") + '>↓</button>' +
         '<button class="lic' + (t.license ? ' has' : '') + '" title="Licence and credit">§</button>' +
         '<button class="rename" title="Rename">✎</button>' +
         '<button class="move" title="Move to another lane">⇄</button>' +
         '<button class="danger del" title="Delete">✕</button>';
       row.querySelector(".ttitle").textContent = t.title;
-      row.querySelector(".artist").textContent = t.artist || "—";
+      row.querySelector(".artist").textContent = (t.artist || "—") + (searching ? " · " + t.mode : "");
+      row.dataset.id = t.id;
+      if (pvTrackId === t.id) row.classList.add("playing");
+      row.querySelector(".pv").addEventListener("click", () => previewTrack(t));
       const lb = document.createElement("span");
       lb.className = "lic-badge " + (t.license ? "ok" : "bad");
       lb.textContent = t.license ? t.license : "no licence";
       row.querySelector(".ttitle").appendChild(lb);
       if ($("#only-missing").checked && t.license) row.style.display = "none";
+      const pn = playsMap[t.id] || 0;
+      if (pn) { const pv = document.createElement("span"); pv.className = "votes"; pv.textContent = "▶ " + pn; row.querySelector(".ttitle").appendChild(pv); }
       const tv = tally[t.id];
       if (tv) { const v = document.createElement("span"); v.className = "votes"; v.textContent = "👍 " + tv.up + "  👎 " + tv.down; row.querySelector(".ttitle").appendChild(v); }
 
@@ -579,13 +636,13 @@
         selectedIds.delete(t.id);
         loadTracks();
       });
-      if (i > 0) row.querySelector(".up").addEventListener("click", async () => {
+      if (!searching && i > 0) row.querySelector(".up").addEventListener("click", async () => {
         const other = data[i-1];
         await supa.from("tracks").update({ position: other.position }).eq("id", t.id);
         await supa.from("tracks").update({ position: t.position }).eq("id", other.id);
         loadTracks();
       });
-      if (i < data.length - 1) row.querySelector(".down").addEventListener("click", async () => {
+      if (!searching && i < data.length - 1) row.querySelector(".down").addEventListener("click", async () => {
         const other = data[i+1];
         await supa.from("tracks").update({ position: other.position }).eq("id", t.id);
         await supa.from("tracks").update({ position: t.position }).eq("id", other.id);
@@ -640,7 +697,7 @@
   });
 
   /* ================= menu ================= */
-  const VIEWS = ["overview","tracks","likes","listeners","downloader","tools"];
+  const VIEWS = ["overview","tracks","likes","listeners","health","downloader","tools"];
   function showView(name){
     document.querySelectorAll("#menu button").forEach(b => b.classList.toggle("on", b.dataset.view === name));
     VIEWS.forEach(v => $("#v-" + v).classList.toggle("on", v === name));
@@ -664,6 +721,13 @@
       if (data.length < 1000) break;
     }
     return { data: out, error: null };
+  }
+  async function playTally(){
+    const map = {};
+    const { data, error } = await fetchAll("track_stats", "track_id,plays");
+    if (error) return map;           // table not created yet: plays just show as 0
+    for (const r of data) map[r.track_id] = r.plays || 0;
+    return map;
   }
   async function voteTally(){
     const map = {};
@@ -697,13 +761,13 @@
   /* ================= likes ================= */
   let likesRows = [];
   async function buildLikesRows(){
-    const [tr, tally] = await Promise.all([fetchAll("tracks", "*"), voteTally()]);
+    const [tr, tally, pl] = await Promise.all([fetchAll("tracks", "*"), voteTally(), playTally()]);
     if (tr.error) throw tr.error;
-    return tr.data.map(t => { const v = tally[t.id] || { up: 0, down: 0 }; return { ...t, up: v.up, down: v.down, net: v.up - v.down }; });
+    return tr.data.map(t => { const v = tally[t.id] || { up: 0, down: 0 }; return { ...t, up: v.up, down: v.down, net: v.up - v.down, plays: pl[t.id] || 0 }; });
   }
   async function loadLikes(){
-    $("#likes-body").innerHTML = '<tr><td colspan="5" class="empty-lane">Loading…</td></tr>';
-    try { likesRows = await buildLikesRows(); } catch(e) { $("#likes-body").innerHTML = '<tr><td colspan="5" class="empty-lane">Couldn\'t load: ' + esc(e.message) + '</td></tr>'; return; }
+    $("#likes-body").innerHTML = '<tr><td colspan="6" class="empty-lane">Loading…</td></tr>';
+    try { likesRows = await buildLikesRows(); } catch(e) { $("#likes-body").innerHTML = '<tr><td colspan="6" class="empty-lane">Couldn\'t load: ' + esc(e.message) + '</td></tr>'; return; }
     renderLikes();
   }
   function renderLikes(){
@@ -711,16 +775,18 @@
     let rows = likesRows.filter(r => lane === "all" || r.mode === lane);
     const voted = r => r.up + r.down > 0;
     rows.sort((a, b) => {
+      if (sort === "plays") return b.plays - a.plays || b.net - a.net;
       if (voted(a) !== voted(b)) return voted(a) ? -1 : 1;           // unvoted songs always last
       if (sort === "bottom") return a.net - b.net || (b.up + b.down) - (a.up + a.down);
       if (sort === "votes") return (b.up + b.down) - (a.up + a.down) || b.net - a.net;
+      if (sort === "plays") return b.plays - a.plays || b.net - a.net;
       return b.net - a.net || (b.up + b.down) - (a.up + a.down);
     });
     $("#likes-body").innerHTML = rows.length ? rows.map(r =>
       '<tr><td>' + esc(r.title) + '<div class="artist" style="color:var(--muted);font-size:.72rem">' + esc(r.artist || "—") + '</div></td>' +
       '<td>' + esc(r.mode) + '</td><td class="num">' + r.up + '</td><td class="num">' + r.down + '</td>' +
-      '<td class="num" style="color:' + (r.net > 0 ? "var(--accent)" : r.net < 0 ? "var(--danger)" : "var(--muted)") + '">' + (r.net > 0 ? "+" : "") + r.net + '</td></tr>'
-    ).join("") : '<tr><td colspan="5" class="empty-lane">No songs yet.</td></tr>';
+      '<td class="num" style="color:' + (r.net > 0 ? "var(--accent)" : r.net < 0 ? "var(--danger)" : "var(--muted)") + '">' + (r.net > 0 ? "+" : "") + r.net + '</td><td class="num">' + r.plays + '</td></tr>'
+    ).join("") : '<tr><td colspan="6" class="empty-lane">No songs yet.</td></tr>';
   }
   $("#likes-lane").addEventListener("change", renderLikes);
   $("#likes-sort").addEventListener("change", renderLikes);
@@ -769,8 +835,8 @@
     try {
       const rows = await buildLikesRows();
       rows.sort((a, b) => a.mode.localeCompare(b.mode) || a.position - b.position);
-      downloadCsv("night-race-tracks.csv", [["Lane","Position","Song","Artist","Intro","Likes","Dislikes","Storage path"]]
-        .concat(rows.map(r => [r.mode, r.position, r.title, r.artist, r.intro ? "yes" : "", r.up, r.down, r.path])));
+      downloadCsv("night-race-tracks.csv", [["Lane","Position","Song","Artist","Intro","Likes","Dislikes","Plays","Storage path"]]
+        .concat(rows.map(r => [r.mode, r.position, r.title, r.artist, r.intro ? "yes" : "", r.up, r.down, r.plays, r.path])));
       setStatus("Tracks exported.");
     } catch(e) { setStatus("Export failed: " + e.message, true); }
   });
@@ -809,6 +875,177 @@
     setStatus(error ? "Clear failed: " + error.message : (count || 0) + " old listener rows deleted.", !!error);
   });
 
+  /* ================= preview player ================= */
+  const pv = $("#pv-audio");
+  let pvTrackId = null;
+  const mmss = x => isFinite(x) ? Math.floor(x / 60) + ":" + String(Math.floor(x % 60)).padStart(2, "0") : "0:00";
+  function publicUrl(path){ return supa.storage.from(BUCKET).getPublicUrl(path).data.publicUrl; }
+  function markPlaying(){
+    document.querySelectorAll(".track").forEach(r => r.classList.toggle("playing", r.dataset.id === pvTrackId));
+    document.querySelectorAll(".track .pv").forEach(b => { b.textContent = (b.closest(".track").dataset.id === pvTrackId && !pv.paused) ? "⏸" : "▶"; });
+    $("#pv-toggle").textContent = pv.paused ? "▶" : "⏸";
+  }
+  function previewTrack(t){
+    if (pvTrackId === t.id) { pv.paused ? pv.play() : pv.pause(); return; }
+    pvTrackId = t.id;
+    pv.src = publicUrl(t.path);
+    $("#pv-title").textContent = t.title + (t.artist ? " · " + t.artist : "");
+    $("#pv-bar").classList.add("on"); document.body.classList.add("pv-on");
+    pv.play().catch(() => setStatus("Couldn't play that file.", true));
+    markPlaying();
+  }
+  pv.addEventListener("play", markPlaying); pv.addEventListener("pause", markPlaying);
+  pv.addEventListener("error", () => { if (pv.src) setStatus("That file won't play.", true); });
+  pv.addEventListener("timeupdate", () => {
+    if (pv.duration) $("#pv-seek").value = Math.round(pv.currentTime / pv.duration * 1000);
+    $("#pv-time").textContent = mmss(pv.currentTime) + " / " + mmss(pv.duration);
+  });
+  $("#pv-seek").addEventListener("input", e => { if (pv.duration) pv.currentTime = pv.duration * e.target.value / 1000; });
+  $("#pv-toggle").addEventListener("click", () => { pv.paused ? pv.play() : pv.pause(); });
+  $("#pv-close").addEventListener("click", () => { pv.pause(); pv.removeAttribute("src"); pvTrackId = null; $("#pv-bar").classList.remove("on"); document.body.classList.remove("pv-on"); markPlaying(); });
+
+  /* ================= search + bulk edit ================= */
+  let searchTimer = null;
+  $("#track-search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadTracks, 250); });
+  LICENSES.forEach(l => { const o = document.createElement("option"); o.value = l.v; o.textContent = l.label; $("#bulk-license").appendChild(o); });
+
+  $("#bulk-move").addEventListener("click", async () => {
+    const to = $("#bulk-lane").value, ids = [...selectedIds];
+    if (!to) { setStatus("Choose a lane to move to.", true); return; }
+    if (!ids.length) return;
+    if (!confirm("Move " + ids.length + " song" + (ids.length === 1 ? "" : "s") + " to " + to + "?")) return;
+    const { count } = await supa.from("tracks").select("id", { count: "exact", head: true }).eq("mode", to);
+    let pos = count || 0, failed = 0;
+    for (const id of ids) { const { error } = await supa.from("tracks").update({ mode: to, position: ++pos }).eq("id", id); if (error) failed++; }
+    setStatus(failed ? failed + " could not be moved." : ids.length + " moved to " + to + ".", !!failed);
+    selectedIds.clear(); loadTracks();
+  });
+  $("#bulk-artist").addEventListener("click", async () => {
+    const ids = [...selectedIds]; if (!ids.length) return;
+    const artist = prompt("Artist name for the " + ids.length + " selected song" + (ids.length === 1 ? "" : "s") + ":", "");
+    if (artist === null) return;
+    const { error } = await supa.from("tracks").update({ artist: artist.trim() }).in("id", ids);
+    setStatus(error ? "Failed: " + error.message : "Artist updated for " + ids.length + " songs.", !!error);
+    loadTracks();
+  });
+  $("#bulk-apply-license").addEventListener("click", async () => {
+    const lic = $("#bulk-license").value, ids = [...selectedIds];
+    if (!lic) { setStatus("Choose a licence first.", true); return; }
+    if (!ids.length) return;
+    const src = prompt("Track page link for these songs (optional; for a mixed batch leave empty and add links one by one with §):", "");
+    if (src === null) return;
+    if (!confirm("Mark " + ids.length + " song" + (ids.length === 1 ? "" : "s") + " as " + lic + "? Only do this if you have checked each track page.")) return;
+    const { data: rows, error: selErr } = await supa.from("tracks").select("id,title,artist").in("id", ids);
+    if (selErr) { setStatus("Failed: " + selErr.message, true); return; }
+    const today = new Date().toISOString().slice(0, 10);
+    const results = await Promise.all(rows.map(r => supa.from("tracks").update({
+      license: lic, license_url: licUrl(lic) || null, source_url: src.trim() || null, license_checked: today,
+      attribution: needsCredit(lic) ? '"' + r.title + '"' + (r.artist ? " by " + r.artist : "") + (src.trim() ? " (" + src.trim() + ")" : "") + ", licensed under " + lic + "." : null
+    }).eq("id", r.id)));
+    const bad = results.filter(x => x.error);
+    setStatus(bad.length ? (/column|schema cache/i.test(bad[0].error.message) ? "Run supabase-licenses.sql first." : bad.length + " failed: " + bad[0].error.message) : "Licence applied to " + rows.length + " songs.", bad.length > 0);
+    loadTracks();
+  });
+
+  /* ================= health check ================= */
+  let healthRows = [], orphanFiles = [];
+  function probe(url){
+    return new Promise(resolve => {
+      const a = new Audio(); let done = false;
+      const end = r => { if (done) return; done = true; clearTimeout(tm); a.removeAttribute("src"); a.load(); resolve(r); };
+      const tm = setTimeout(() => end({ ok: false, why: "timeout" }), 15000);
+      a.preload = "metadata";
+      a.addEventListener("loadedmetadata", () => end({ ok: true, dur: a.duration }));
+      a.addEventListener("error", () => end({ ok: false, why: "error" }));
+      a.src = url;
+    });
+  }
+  async function headInfo(url){
+    try { const r = await fetch(url, { method: "HEAD" }); return { status: r.status, size: parseInt(r.headers.get("content-length") || "0", 10) }; }
+    catch(e){ return { status: 0, size: 0 }; }    // blocked or offline: fall back to the audio test alone
+  }
+  const fmtSize = b => b ? (b / 1048576).toFixed(1) + " MB" : "—";
+  function renderHealth(){
+    const onlyBad = $("#health-problems").checked;
+    const rows = healthRows.filter(r => !onlyBad || r.level !== "ok");
+    $("#health-body").innerHTML = rows.length ? rows.map(r =>
+      '<tr><td>' + esc(r.t.title) + '<div class="artist" style="color:var(--muted);font-size:.72rem">' + esc(r.t.artist || "—") + '</div></td><td>' + esc(r.t.mode) + '</td>' +
+      '<td class="st-' + (r.level === "ok" ? "ok" : r.level === "warn" ? "warn" : "bad") + '">' + esc(r.msg) + '</td>' +
+      '<td class="num">' + (r.dur ? mmss(r.dur) : "—") + '</td><td class="num">' + fmtSize(r.size) + '</td>' +
+      '<td style="white-space:nowrap"><button class="btn" data-pv="' + esc(r.t.id) + '" type="button">▶</button> <button class="btn danger" data-del="' + esc(r.t.id) + '" type="button">✕</button></td></tr>'
+    ).join("") : '<tr><td colspan="6" class="empty-lane">' + (healthRows.length ? "No problems found." : "Not run yet.") + '</td></tr>';
+    $("#health-body").querySelectorAll("[data-pv]").forEach(b => b.addEventListener("click", () => { const r = healthRows.find(x => x.t.id === b.dataset.pv); if (r) previewTrack(r.t); }));
+    $("#health-body").querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", async () => {
+      const r = healthRows.find(x => x.t.id === b.dataset.del); if (!r) return;
+      if (!confirm('Delete "' + r.t.title + '"? This removes the song and its file (if any).')) return;
+      await supa.storage.from(BUCKET).remove([r.t.path]);
+      const { error } = await supa.from("tracks").delete().eq("id", r.t.id);
+      if (error) { setStatus("Delete failed: " + error.message, true); return; }
+      healthRows = healthRows.filter(x => x.t.id !== r.t.id); renderHealth(); setStatus("Deleted.");
+    }));
+  }
+  async function runHealth(){
+    const btn = $("#health-run"); btn.disabled = true; btn.textContent = "Checking…";
+    $("#health-prog").style.width = "0"; $("#orphans").innerHTML = "";
+    try {
+      const tr = await fetchAll("tracks", "id,title,artist,mode,path");
+      if (tr.error) throw tr.error;
+      const tracks = tr.data; healthRows = []; let done = 0, i = 0;
+      const worker = async () => {
+        while (i < tracks.length) {
+          const t = tracks[i++], url = publicUrl(t.path);
+          const h = await headInfo(url);
+          let r;
+          if (h.status === 404 || h.status === 400) r = { t, level: "bad", msg: "File missing", size: 0 };
+          else if (h.status && h.status >= 400) r = { t, level: "bad", msg: "Server error " + h.status, size: 0 };
+          else {
+            const p = await probe(url);
+            if (!p.ok) r = { t, level: "bad", msg: p.why === "timeout" ? "Too slow to load" : "Won't play", size: h.size };
+            else if (h.size && h.size < 50000) r = { t, level: "bad", msg: "File is tiny (probably broken)", size: h.size, dur: p.dur };
+            else if (p.dur < 45) r = { t, level: "warn", msg: "Very short (" + mmss(p.dur) + ")", size: h.size, dur: p.dur };
+            else r = { t, level: "ok", msg: "OK", size: h.size, dur: p.dur };
+          }
+          healthRows.push(r); done++;
+          $("#health-prog").style.width = Math.round(done / tracks.length * 100) + "%";
+        }
+      };
+      await Promise.all([worker(), worker(), worker(), worker()]);
+      // leftover files: in storage but not used by any song
+      const known = new Set(tracks.map(t => t.path)); orphanFiles = []; let listFailed = false;
+      for (const lane of ["slow", "cool", "hype"]) {
+        const { data, error } = await supa.storage.from(BUCKET).list(lane, { limit: 1000 });
+        if (error) { listFailed = true; continue; }
+        (data || []).forEach(f => { if (f.name && f.name !== ".emptyFolderPlaceholder" && !known.has(lane + "/" + f.name)) orphanFiles.push({ path: lane + "/" + f.name, size: (f.metadata && f.metadata.size) || 0 }); });
+      }
+      const bad = healthRows.filter(r => r.level === "bad").length, warn = healthRows.filter(r => r.level === "warn").length;
+      $("#health-cards").innerHTML =
+        '<div class="card"><b>' + tracks.length + '</b><span>Songs checked</span></div>' +
+        '<div class="card"><b style="color:#3FC96B">' + healthRows.filter(r => r.level === "ok").length + '</b><span>Healthy</span></div>' +
+        '<div class="card"' + (bad ? ' style="border-color:var(--danger)"' : '') + '><b' + (bad ? ' style="color:var(--danger)"' : '') + '>' + bad + '</b><span>Broken</span></div>' +
+        '<div class="card"><b>' + warn + '</b><span>Warnings</span></div>' +
+        '<div class="card"><b>' + orphanFiles.length + '</b><span>Unused files</span></div>';
+      healthRows.sort((a, b) => ({ bad: 0, warn: 1, ok: 2 }[a.level]) - ({ bad: 0, warn: 1, ok: 2 }[b.level]) || a.t.mode.localeCompare(b.t.mode));
+      renderHealth();
+      if (orphanFiles.length) {
+        $("#orphans").innerHTML = '<div class="lane-head"><h2>Unused files (' + orphanFiles.length + ')</h2><button class="btn danger" id="orphan-del" type="button">Delete all unused</button></div>' +
+          '<div class="tablewrap"><table class="data"><tbody>' + orphanFiles.map(f => '<tr><td>' + esc(f.path) + '</td><td class="num">' + fmtSize(f.size) + '</td></tr>').join("") + '</tbody></table></div>' +
+          '<p class="note">These files are in storage but no song points at them, usually from an interrupted upload or a song deleted by hand.</p>';
+        $("#orphan-del").addEventListener("click", async () => {
+          if (!confirm("Permanently delete " + orphanFiles.length + " unused files?")) return;
+          const { error } = await supa.storage.from(BUCKET).remove(orphanFiles.map(f => f.path));
+          setStatus(error ? "Failed: " + error.message : orphanFiles.length + " unused files deleted.", !!error);
+          if (!error) { orphanFiles = []; $("#orphans").innerHTML = ""; }
+        });
+      } else if (listFailed) { $("#orphans").innerHTML = '<p class="note">Couldn\'t list storage files to look for unused ones.</p>'; }
+      const when = new Date().toLocaleString(); $("#health-when").textContent = "Last run: " + when;
+      try { localStorage.setItem("nightrace.health", when); } catch(e){}
+    } catch(e) { setStatus("Health check failed: " + e.message, true); }
+    btn.disabled = false; btn.textContent = "Run health check";
+  }
+  $("#health-run").addEventListener("click", runHealth);
+  $("#health-problems").addEventListener("change", renderHealth);
+  try { const w = localStorage.getItem("nightrace.health"); if (w) $("#health-when").textContent = "Last run: " + w; } catch(e){}
+
   /* ================= overview ================= */
   async function loadOverview(){
     $("#overview-cards").innerHTML = '<div class="empty-lane">Loading…</div>'; $("#overview-panels").innerHTML = "";
@@ -817,7 +1054,8 @@
       const lanes = { slow: 0, cool: 0, hype: 0 }; rows.forEach(r => { if (lanes[r.mode] != null) lanes[r.mode]++; });
       const up = rows.reduce((a, r) => a + r.up, 0), down = rows.reduce((a, r) => a + r.down, 0);
       const sd = ses.error ? [] : ses.data, now = Date.now(), within = ms => sd.filter(r => now - new Date(r.last_seen).getTime() <= ms).length;
-      const plays = sd.reduce((a, r) => a + (r.plays || 0), 0);
+      const trackPlays = rows.reduce((a, r) => a + (r.plays || 0), 0);
+      const plays = trackPlays || sd.reduce((a, r) => a + (r.plays || 0), 0);
       $("#overview-cards").innerHTML =
         '<div class="card live"><b>' + within(120000) + '</b><span>Live now</span></div>' +
         '<div class="card"><b>' + within(86400000) + '</b><span>Listeners, 24 h</span></div>' +
@@ -834,6 +1072,7 @@
       $("#overview-panels").innerHTML =
         bars("Songs per lane", rows.map(r => r.mode)) +
         list("Most liked", top, r => (r.net > 0 ? "+" : "") + r.net) +
+        list("Most played", rows.filter(r => r.plays > 0).sort((a, b) => b.plays - a.plays).slice(0, 5), r => "▶ " + r.plays) +
         list("Most disliked", worst, r => "👍" + r.up + " 👎" + r.down) +
         bars("Country", sd.map(r => r.country)) + bars("Device", sd.map(r => r.device_type));
     } catch(e) { $("#overview-cards").innerHTML = '<div class="empty-lane">Couldn\'t load: ' + esc(e.message) + '</div>'; }

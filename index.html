@@ -2077,6 +2077,7 @@
   // currently in control before touching the UI, since during a fade
   // both are technically "playing" at once.
   let lastResumeTry = 0;
+  let playLogged = "";
   decks.forEach(el => {
     el.addEventListener("play", ()=>{
       if (el !== active()) return;
@@ -2113,6 +2114,12 @@
         $("#fill").style.width = (p*100)+"%";
         $("#t-now").textContent = fmt(el.currentTime);
         $("#bar").setAttribute("aria-valuenow", Math.round(p*100));
+        // count a play once a song has really been heard (20 s, or half of a very short one)
+        if (shownTrack && shownTrack.id && playLogged !== shownTrack.src && el.duration &&
+            el.currentTime >= Math.min(20, el.duration / 2)) {
+          playLogged = shownTrack.src;
+          if (supa) supa.rpc("log_play", { p_track: shownTrack.id }).then(() => {}, () => {});
+        }
       }
       if (el === active()) {
         checkAutoAdvance(el);
