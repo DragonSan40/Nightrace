@@ -388,6 +388,12 @@
   #login-btn:hover { padding-left: 1.2rem; }
   #login-error { min-height: 1.3em; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; }
   #login-error:not(:empty)::before { content: "> access denied // "; }
+  .termwin2 { background: rgba(0,5,9,.94); border: 1px solid var(--accent); box-shadow: 0 0 24px rgba(77,235,255,.2), inset 0 0 30px rgba(77,235,255,.04); padding: .9rem 1rem; font-family: var(--mono); font-size: .82rem; color: var(--accent); }
+  #tm-out { margin: 0 0 .6rem; white-space: pre-wrap; word-break: break-word; max-height: 56vh; overflow: auto; line-height: 1.6; text-shadow: 0 0 6px rgba(77,235,255,.4); }
+  #tm-out .cmd { color: #EAFDFF; } #tm-out .err { color: var(--danger); } #tm-out .dim { opacity: .6; }
+  .tm-in { display: flex; gap: .6rem; align-items: center; border-top: 1px solid rgba(77,235,255,.3); padding-top: .6rem; }
+  .tm-in span { white-space: nowrap; }
+  .tm-in input { flex: 1; min-width: 0; background: transparent !important; border: 0 !important; box-shadow: none !important; color: #EAFDFF !important; font: inherit; padding: .3rem 0 !important; }
   @media (prefers-reduced-motion: reduce) { body::before, .cur, .card.live b::before { animation: none; } }
   @media (max-width: 560px) { h1 { font-size: 1.1rem; letter-spacing: .3em; } .menu button { padding: .55rem .6rem; } }
 </style>
@@ -425,6 +431,7 @@
       <button type="button" data-view="listeners">Listeners</button>
       <button type="button" data-view="health">Health</button>
       <button type="button" data-view="downloader">Downloader</button>
+      <button type="button" data-view="terminal">&gt;_ Terminal</button>
       <button type="button" data-view="tools">Tools</button>
     </nav>
 
@@ -522,6 +529,14 @@
           <li>Name the file <b>Song Name - Artist.mp3</b> so the upload fills both fields.</li>
           <li>Upload it in the Tracks tab, then check it plays in the right lane.</li>
         </ol></div>
+    </section>
+
+    <section class="view" id="v-terminal">
+      <p class="note">Read-only command line. Type <b>help</b>. Nothing here can change or delete data.</p>
+      <div class="termwin2" id="tm-win">
+        <pre id="tm-out" aria-live="polite"></pre>
+        <label class="tm-in"><span>grid@night-race ›</span><input id="tm-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command"></label>
+      </div>
     </section>
 
     <section class="view" id="v-tools">
@@ -953,13 +968,14 @@
   });
 
   /* ================= menu ================= */
-  const VIEWS = ["overview","tracks","likes","listeners","health","downloader","tools"];
+  const VIEWS = ["overview","tracks","likes","listeners","health","downloader","terminal","tools"];
   function showView(name){
     document.querySelectorAll("#menu button").forEach(b => b.classList.toggle("on", b.dataset.view === name));
     VIEWS.forEach(v => $("#v-" + v).classList.toggle("on", v === name));
     if (name === "overview") loadOverview();
     if (name === "likes") loadLikes();
     if (name === "listeners") loadListeners();
+    if (name === "terminal") termFocus();
   }
   document.querySelectorAll("#menu button").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
 
@@ -1084,6 +1100,87 @@
     ).join("") || '<tr><td colspan="10" class="empty-lane">No listeners recorded yet.</td></tr>';
   }
   $("#listeners-refresh").addEventListener("click", loadListeners);
+
+  /* ================= terminal (read-only) ================= */
+  const tmOut = $("#tm-out"), tmIn = $("#tm-input");
+  const tmHist = []; let tmPos = 0, tmBusy = false;
+  const COMMANDS = ["help","clear","whoami","tracks","find","likes","plays","listeners","health","licence","export","logout"];
+  function termFocus(){ setTimeout(() => tmIn.focus(), 30); }
+  function tmPrint(text, cls){
+    const d = document.createElement("div"); if (cls) d.className = cls; d.textContent = text; tmOut.appendChild(d); tmOut.scrollTop = tmOut.scrollHeight;
+  }
+  const padR = (v, n) => { v = String(v == null ? "" : v); return v.length > n ? v.slice(0, n - 1) + "…" : v.padEnd(n); };
+  const padL = (v, n) => String(v == null ? "" : v).padStart(n);
+  async function termRun(line){
+    const parts = line.trim().split(/\s+/), cmd = (parts[0] || "").toLowerCase(), args = parts.slice(1), rest = args.join(" ");
+    if (!cmd) return;
+    switch (cmd) {
+      case "help":
+        tmPrint(["help                 this list","clear                clear the screen","whoami               who is signed in","tracks [slow|cool|hype]   list tracks","find <text>          search title / artist","likes                top 10 by likes","plays                top 10 by plays","listeners            audience summary (hashed IP only)","health               check every file plays","licence missing      tracks with no licence","export tracks|credits|licences|listeners   download a file","logout               sign out"].join("\n"), "dim"); break;
+      case "clear": tmOut.textContent = ""; break;
+      case "whoami": tmPrint(session && session.user ? session.user.email : "not signed in"); break;
+      case "tracks": case "find": {
+        const rows = (await buildLikesRows());
+        let list = rows;
+        if (cmd === "tracks" && args[0]) list = rows.filter(r => r.mode === args[0].toLowerCase());
+        if (cmd === "find") { if (!rest) { tmPrint("usage: find <text>", "err"); break; } const q = rest.toLowerCase(); list = rows.filter(r => (r.title + " " + (r.artist || "")).toLowerCase().includes(q)); }
+        list.sort((a, b) => a.mode.localeCompare(b.mode) || a.position - b.position);
+        tmPrint(padR("LANE", 6) + padR("#", 4) + padR("TITLE", 30) + padR("ARTIST", 22) + padL("♥", 4) + padL("▶", 6), "dim");
+        list.slice(0, 60).forEach(r => tmPrint(padR(r.mode, 6) + padR(r.position, 4) + padR(r.title, 30) + padR(r.artist, 22) + padL(r.up, 4) + padL(r.plays, 6)));
+        tmPrint(list.length + " track" + (list.length === 1 ? "" : "s") + (list.length > 60 ? " (showing 60)" : ""), "dim"); break; }
+      case "likes": case "plays": {
+        const rows = await buildLikesRows(), key = cmd === "likes" ? "up" : "plays";
+        rows.sort((a, b) => b[key] - a[key]);
+        rows.slice(0, 10).forEach((r, i) => tmPrint(padL(i + 1, 2) + ". " + padR(r.title, 32) + padR(r.artist, 22) + padL(r[key], 5)));
+        break; }
+      case "listeners": {
+        const { data, error } = await fetchAll("listener_sessions", "*");
+        if (error) { tmPrint("error: " + error.message, "err"); break; }
+        const now = Date.now(), w = ms => data.filter(r => now - new Date(r.last_seen).getTime() <= ms).length;
+        tmPrint("live now: " + w(120000) + "   24h: " + w(86400000) + "   7d: " + w(7 * 86400000) + "   all time: " + data.length);
+        const top = key => { const m = {}; data.forEach(r => { const v = r[key] || "unknown"; m[v] = (m[v] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0] + " " + e[1]).join(", "); };
+        ["country", "device_type", "os", "browser"].forEach(k => tmPrint(padR(k, 12) + top(k)));
+        break; }
+      case "health": {
+        tmPrint("checking files, this can take a minute…", "dim");
+        await runHealth();
+        const c = l => healthRows.filter(r => r.level === l).length;
+        tmPrint("ok " + c("ok") + "   warnings " + c("warn") + "   broken " + c("bad"));
+        healthRows.filter(r => r.level !== "ok").forEach(r => tmPrint("  " + r.level.toUpperCase() + "  " + r.t.mode + "  " + r.t.title + " — " + r.msg, r.level === "bad" ? "err" : ""));
+        break; }
+      case "licence": case "license": {
+        if (args[0] !== "missing") { tmPrint("usage: licence missing", "err"); break; }
+        const rows = (await buildLikesRows()).filter(r => !r.license);
+        rows.forEach(r => tmPrint(padR(r.mode, 6) + padR(r.title, 32) + r.artist));
+        tmPrint(rows.length ? rows.length + " without a licence" : "every track has a licence", "dim"); break; }
+      case "export": {
+        const map = { tracks: "#export-tracks", credits: "#export-credits", licences: "#export-licences", licenses: "#export-licences", listeners: "#export-listeners" };
+        if (!map[args[0]]) { tmPrint("usage: export tracks|credits|licences|listeners", "err"); break; }
+        $(map[args[0]]).click(); tmPrint("download started"); break; }
+      case "logout": $("#logout").click(); break;
+      default:
+        tmPrint("unknown command: " + cmd + " (type help)", "err");
+    }
+  }
+  tmIn.addEventListener("keydown", async e => {
+    if (e.key === "Enter") {
+      if (tmBusy) return;
+      const line = tmIn.value; tmIn.value = "";
+      if (!line.trim()) return;
+      tmHist.push(line); tmPos = tmHist.length;
+      tmPrint("grid@night-race › " + line, "cmd");
+      tmBusy = true;
+      try { await termRun(line); } catch(err) { tmPrint("error: " + (err && err.message || err), "err"); }
+      tmBusy = false; termFocus();
+    } else if (e.key === "ArrowUp") { e.preventDefault(); if (tmPos > 0) tmIn.value = tmHist[--tmPos]; }
+    else if (e.key === "ArrowDown") { e.preventDefault(); tmPos = Math.min(tmHist.length, tmPos + 1); tmIn.value = tmHist[tmPos] || ""; }
+    else if (e.key === "Tab") {
+      e.preventDefault(); const v = tmIn.value.toLowerCase();
+      if (v && !v.includes(" ")) { const m = COMMANDS.filter(c => c.startsWith(v)); if (m.length === 1) tmIn.value = m[0] + " "; }
+    }
+  });
+  $("#tm-win").addEventListener("click", () => { if (!getSelection().toString()) tmIn.focus(); });
+  tmPrint("NIGHT RACE GRID TERMINAL — read-only. type 'help'.", "dim");
 
   /* ================= tools ================= */
   $("#export-tracks").addEventListener("click", async () => {
