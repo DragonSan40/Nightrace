@@ -608,6 +608,7 @@
     <button id="shuffle" type="button" class="is-on">🔀 Shuffle: <span>on</span></button>
     <button id="rain" type="button">☔ Rain: <span>off</span></button>
     <button id="taste-reset" type="button" title="Forget every like and dislike on this device">↺ Reset likes: <span>0</span></button>
+    <button id="debug-copy" type="button" title="Copies a short technical report you can send to the developer">🩺 Copy debug info</button>
     <button id="wakelock" type="button" title="Keeps your screen on so the display doesn't lock — music keeps playing either way">🔆 Keep awake: <span>off</span></button>
   </div>
   <span class="group-label">Car sounds</span>
@@ -839,6 +840,24 @@
   let fadingOutDeck = null;
   let fading = false;
   const FADE_MS = 2500;
+  /* Small event log so a phone problem can be diagnosed without a computer:
+     Garage > "Copy debug info" puts it on the clipboard. */
+  const nrLog = [];
+  function logEv(m){ nrLog.push(new Date().toISOString().slice(11, 19) + " " + m + (document.hidden ? " [hidden]" : "")); if (nrLog.length > 80) nrLog.shift(); }
+  /* "fading" is cleared by a timer. Phones throttle or freeze timers when the
+     screen is off, which used to leave it stuck on forever and silently stop
+     the next song. If a fade has been running far longer than it should, it
+     is over. */
+  let fadeStart = 0;
+  function fadingNow(){
+    if (fading && Date.now() - fadeStart > FADE_MS + 2500) {
+      logEv("stuck fade cleared");
+      fading = false;
+      if (fadingOutDeck && fadingOutDeck !== active()) { try { fadingOutDeck.pause(); } catch(e){} }
+      fadingOutDeck = null;
+    }
+    return fading;
+  }
   const active   = () => decks[activeIdx];
   const inactive = () => decks[1 - activeIdx];
 
@@ -1225,6 +1244,10 @@
     if (analyser) return;
     try {
       ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+      ctx.addEventListener("statechange", () => {
+        logEv("audio engine " + ctx.state);
+        if (ctx.state !== "running" && started && !decks[activeIdx].paused) ctx.resume().catch(()=>{});
+      });
       const an = ctx.createAnalyser();
       an.fftSize = 512; an.smoothingTimeConstant = 0.72;
       const mg = ctx.createGain(); mg.gain.value = masterVolume;
@@ -1287,6 +1310,10 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(resize, 150);   // mobile fires this repeatedly during scroll as the URL bar collapses/expands — debounce so it doesn't redraw mid-scroll
   });
+
+  addEventListener("pageshow", resize);
+  addEventListener("orientationchange", () => setTimeout(resize, 200));
+  if (window.ResizeObserver) new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(resize, 100); }).observe(cv);
 
   for (let i=0;i<14;i++) lamps.push({ z: i/14, side: i%2 ? 1 : -1 });
   for (let i=0;i<9;i++)  cars.push({ z: Math.random(), lane: (Math.random()*3|0)-1, red: Math.random()>.4 });
@@ -1359,6 +1386,10 @@
     const now = performance.now();
     const dt = Math.min(0.05, (now - lastFrameAt) / 1000);   // capped so a tab-switch stall doesn't fling rain across the screen
     lastFrameAt = now;
+    // Android can reset the canvas (scale back to 1, wrong size) after the app was in the background.
+    // Re-check size and re-apply the scale every frame: it's cheap and makes the road/visualizer self-correcting.
+    if (cv.clientWidth !== W || cv.clientHeight !== H || cv.width !== Math.round(W * dpr) || Math.min(devicePixelRatio || 1, 2) !== dpr) resize();
+    else g.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const M = currentVisualM();
     if (modeTransition) {
@@ -1641,7 +1672,10 @@
     cursor = pickAvoidingRepeats(l, stepped, step);
     const t = l[order[cursor]];
     rememberPlayed(t);
-    if (!decks[activeIdx].paused) crossfadeTo(t); else straightLoad(t, true);
+    logEv("next: " + t.title);
+    // In the background (screen off / app switched) a crossfade depends on timers the phone may freeze,
+    // so do a plain, reliable switch instead.
+    if (!decks[activeIdx].paused && !document.hidden) crossfadeTo(t); else straightLoad(t, true);
   }
 
   /* Overlap two tracks: bring the new one in on the idle deck while the
@@ -1681,7 +1715,7 @@
       inc.play().catch(()=>{});
       rampDeck(inIdx, 1, ms / 1000);
       rampDeck(outIdx, 0, ms / 1000);
-      activeIdx = inIdx; fadingOutDeck = decks[outIdx]; fading = true;
+      activeIdx = inIdx; fadingOutDeck = decks[outIdx]; fading = true; fadeStart = Date.now();
       handoffTimer = setTimeout(() => {
         if (token !== fadeToken) return;
         shownIdx = inIdx; paint(t);
@@ -1711,7 +1745,8 @@
   // start the next track's crossfade before this one runs out, rather
   // than waiting for it to end and finding silence
   function checkAutoAdvance(el){
-    if (fading || list().length < 2 || !el.duration) return;
+    if (fadingNow() || list().length < 2 || !el.duration) return;
+    if (document.hidden) return;   // in the background, wait for 'ended' and switch plainly
     if (el.duration - el.currentTime <= FADE_MS / 1000) load(1);
   }
 
@@ -1851,7 +1886,7 @@
     const token = ++fadeToken;
     clearTimeout(handoffTimer); clearTimeout(fadeTimer);
     rampDeck(0, 0, FADE_MS / 1000); rampDeck(1, 0, FADE_MS / 1000);
-    fading = true;
+    fading = true; fadeStart = Date.now();
     fadeTimer = setTimeout(() => {
       if (token !== fadeToken) return;
       decks.forEach(d => { d.pause(); d.currentTime = 0; });
@@ -2002,6 +2037,17 @@
     btn.classList.toggle("is-on", on);
   }
 
+  document.addEventListener("visibilitychange", () => {
+    logEv("page " + document.visibilityState);
+    if (document.visibilityState === "visible") {
+      if (ctx && ctx.state !== "running" && started && !decks[activeIdx].paused) ctx.resume().catch(()=>{});
+      resize();
+      // If the active track ended while we were away and the next one never started, start it now
+      const a = decks[activeIdx];
+      if (started && a.ended) { logEv("catch-up after return"); load(1); }
+    }
+  });
+
   /* ---- car sounds wiring ---- */
   function flashButton(btn){
     btn.classList.add("flash");
@@ -2030,6 +2076,7 @@
   // Listeners attach to both decks; each checks whether it's the deck
   // currently in control before touching the UI, since during a fade
   // both are technically "playing" at once.
+  let lastResumeTry = 0;
   decks.forEach(el => {
     el.addEventListener("play", ()=>{
       if (el !== active()) return;
@@ -2042,10 +2089,22 @@
       icon();
       if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
     });
-    el.addEventListener("ended", ()=>{ if (el === active() && !fading) load(1); });
+    el.addEventListener("ended", ()=>{
+      if (el !== active()) return;
+      logEv("ended");
+      fading = false; fadingOutDeck = null;   // the active track ending always means: go to the next one
+      load(1);
+    });
+    let errorSkips = 0;
+    el.addEventListener("playing", ()=>{ if (el === active()) errorSkips = 0; });
+    el.addEventListener("stalled", ()=>{ if (el === active()) logEv("stalled"); });
+    el.addEventListener("waiting", ()=>{ if (el === active()) logEv("waiting"); });
     el.addEventListener("error", ()=>{
       if (el !== active() || !el.src) return;
-      $("#np-sub").textContent = "Couldn't load this track. Try the next one.";
+      logEv("error " + (el.error ? el.error.code : "?"));
+      $("#np-sub").textContent = "Couldn't load this track. Skipping…";
+      // a dropped connection or bad file shouldn't end the night: try the next track (max 4 in a row)
+      if (++errorSkips <= 4 && list().length > 1) setTimeout(() => { if (el === active() && el.error) load(1); }, 1200);
     });
     el.addEventListener("loadedmetadata", ()=>{ if (el === shown()) $("#t-end").textContent = fmt(el.duration); });
     el.addEventListener("timeupdate", ()=>{
@@ -2055,7 +2114,14 @@
         $("#t-now").textContent = fmt(el.currentTime);
         $("#bar").setAttribute("aria-valuenow", Math.round(p*100));
       }
-      if (el === active()) checkAutoAdvance(el);
+      if (el === active()) {
+        checkAutoAdvance(el);
+        if (!el.paused) {
+          // heal: audio engine suspended by the phone, or a fade that never finished leaving this deck quiet
+          if (ctx && ctx.state !== "running" && Date.now() - lastResumeTry > 2000) { lastResumeTry = Date.now(); ctx.resume().catch(()=>{}); }
+          if (!fadingNow() && deckGain[activeIdx] && deckGain[activeIdx].gain.value < 0.9) { logEv("restored deck volume"); setDeckGain(activeIdx, 1); }
+        }
+      }
     });
   });
   function fmt(s){ if (!isFinite(s)) return "0:00"; const m=s/60|0; return m+":"+String(s%60|0).padStart(2,"0"); }
@@ -2235,8 +2301,15 @@
   // Debug hook — everything above lives inside a closure, invisible to
   // devtools by default. Run window.nrDebug() in the console to see the
   // real state of the audio graph instead of guessing.
+  $("#debug-copy").addEventListener("click", async e => {
+    const b = e.currentTarget, old = b.textContent;
+    const info = JSON.stringify({ when: new Date().toISOString(), ua: navigator.userAgent, installed: !!(window.matchMedia && matchMedia("(display-mode: standalone)").matches), ...window.nrDebug() }, null, 1);
+    try { await navigator.clipboard.writeText(info); b.textContent = "✓ Copied"; } catch(err) { b.textContent = "Couldn't copy"; }
+    setTimeout(() => { b.textContent = old; }, 1800);
+  });
   window.nrDebug = function(){
     return {
+      log: nrLog.slice(),
       audioContextState: ctx ? ctx.state : "(no AudioContext created yet)",
       masterVolume,
       fading,
