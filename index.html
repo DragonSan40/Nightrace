@@ -435,6 +435,10 @@
   .stn-x:hover { color: #ff6b6b; }
   .stn-empty { color: #cfd3da; opacity: .6; font-size: .82rem; text-align: center; padding: .9rem .4rem; }
   #favs .eq-note { color: var(--metal-d); font-style: normal; }
+  .scope-row { display: flex; gap: .4rem; margin: .2rem 0 .5rem; }
+  .scope-key { flex: 1; font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; color: var(--metal); border: 1px solid #3b4049; border-radius: 6px; padding: .4rem .5rem; background: linear-gradient(180deg, #2a2e35, #15181d); cursor: pointer; }
+  .scope-key.on { color: var(--lcd); border-color: var(--lcd); box-shadow: inset 0 0 8px rgba(0,0,0,.6); }
+  .stn-x.heart { font-size: .95rem; }
   @media (max-width: 480px) { .dial-knob { width: 42px; height: 42px; } .dial-knob::before { inset: 5px; } .dial-knob::after { top: 7px; height: 8px; } #fav-freq { font-size: 1.8rem; } .pre-key { width: 42px; } .unit { gap: .5rem; } }
 
   #sheet-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(4,6,10,.62); opacity: 0; pointer-events: none; transition: opacity .25s ease; }
@@ -790,7 +794,11 @@
     <button type="button" class="seek-key" id="fav-next" aria-label="Next saved station">Seek ⏭</button>
   </div>
   <div class="pre-keys" id="fav-presets" role="group" aria-label="Presets"></div>
-  <input id="fav-search" type="search" placeholder="Find: song, artist or lane…" aria-label="Search your favourites" autocomplete="off">
+  <div class="scope-row" role="group" aria-label="What to list">
+    <button type="button" id="scope-saved" class="scope-key on" aria-pressed="true">♡ Saved</button>
+    <button type="button" id="scope-all" class="scope-key" aria-pressed="false">All songs</button>
+  </div>
+  <input id="fav-search" type="search" placeholder="Find: song, artist or lane…" aria-label="Search songs" autocomplete="off">
   <div class="stations" id="fav-list" role="list"></div>
   <p class="eq-note">Tap ♡ on any song to add it. Favourites are saved on this device. Clearing your browser data clears them.</p>
 </aside>
@@ -1959,7 +1967,7 @@
   setInterval(() => { if (started && decks[activeIdx] && !decks[activeIdx].paused) pingSession(); }, 60000);
 
   /* ---- Favourites: a personal radio dial, saved on this device ---- */
-  let favs = [];
+  let favs = [], favScope = "saved";
   const favsEl = document.getElementById("favs");
   const laneOf = src => ["slow","cool","hype"].find(m => TRACKS[m].some(q => q.src === src)) || null;
   const freqOf = src => { let h = 2166136261; for (let i = 0; i < src.length; i++) { h ^= src.charCodeAt(i); h = Math.imul(h, 16777619); } return 88 + ((h >>> 0) % 200) / 10; };   // 88.0 - 107.9, stable per song
@@ -2020,11 +2028,19 @@
       if (f) { b.title = f.title; b.setAttribute("aria-label", "Preset " + (i + 1) + ": " + f.title); b.addEventListener("click", () => playFav(f)); }
       pre.appendChild(b);
     }
-    const rows = favs.filter(f => !q || (f.title + " " + f.artist + " " + f.mode).toLowerCase().includes(q)).sort((a, b) => freqOf(a.src) - freqOf(b.src));
+    const all = favScope === "all";
+    let rows;
+    if (all) {
+      rows = [];
+      for (const m of ["slow","cool","hype"]) for (const t of TRACKS[m]) rows.push({ src: t.src, id: t.id || null, title: t.title, artist: (t.artist && t.artist !== "—") ? t.artist : "", mode: m });
+      rows = rows.filter(f => !q || (f.title + " " + f.artist + " " + f.mode).toLowerCase().includes(q));
+      rows.sort((a, b) => a.title.localeCompare(b.title));
+    } else rows = favs.filter(f => !q || (f.title + " " + f.artist + " " + f.mode).toLowerCase().includes(q)).sort((a, b) => freqOf(a.src) - freqOf(b.src));
+    const total = rows.length; if (all) rows = rows.slice(0, 80);
     const box = $("#fav-list"); box.innerHTML = "";
     if (!rows.length) {
       const e = document.createElement("div"); e.className = "stn-empty";
-      e.textContent = favs.length ? "No station matches that." : "Nothing here yet. Tap the ♡ on a song to add your first station.";
+      e.textContent = all ? "No song matches that." : (favs.length ? "No station matches that." : "Nothing here yet. Tap the ♡ on a song to add your first station, or switch to All songs.");
       box.appendChild(e); return;
     }
     rows.forEach(f => {
@@ -2039,10 +2055,22 @@
       const ln = document.createElement("span"); ln.className = "l"; ln.textContent = f.mode;
       main.append(fr, tx, ln);
       main.addEventListener("click", () => playFav(f));
-      const x = document.createElement("button"); x.type = "button"; x.className = "stn-x"; x.textContent = "✕"; x.title = "Remove"; x.setAttribute("aria-label", "Remove " + f.title);
-      x.addEventListener("click", () => { favs = favs.filter(z => z.src !== f.src); save(); paintFav(); });
+      const x = document.createElement("button"); x.type = "button"; x.className = "stn-x";
+      if (all) {
+        const on = favs.some(z => z.src === f.src);
+        x.classList.add("heart"); x.textContent = on ? "♥" : "♡"; x.title = on ? "Remove from Favourites" : "Save to Favourites"; x.setAttribute("aria-label", x.title); x.setAttribute("aria-pressed", String(on));
+        x.addEventListener("click", () => {
+          if (on) favs = favs.filter(z => z.src !== f.src);
+          else { if (favs.length >= 200) favs.shift(); favs.push(f); }
+          save(); paintFav();
+        });
+      } else {
+        x.textContent = "✕"; x.title = "Remove"; x.setAttribute("aria-label", "Remove " + f.title);
+        x.addEventListener("click", () => { favs = favs.filter(z => z.src !== f.src); save(); paintFav(); });
+      }
       row.append(main, x); box.appendChild(row);
     });
+    if (all && total > rows.length) { const e = document.createElement("div"); e.className = "stn-empty"; e.textContent = "Showing " + rows.length + " of " + total + ". Type to narrow it down."; box.appendChild(e); }
   }
   let shownTrack = null;
   function paintRate(t){
@@ -2492,6 +2520,9 @@
   document.getElementById("fav-next").addEventListener("click", () => seekFav(1));
   $("#fav").addEventListener("click", toggleFav);
   $("#fav-search").addEventListener("input", renderFavs);
+  function setScope(v){ favScope = v; $("#scope-saved").classList.toggle("on", v === "saved"); $("#scope-all").classList.toggle("on", v === "all"); $("#scope-saved").setAttribute("aria-pressed", String(v === "saved")); $("#scope-all").setAttribute("aria-pressed", String(v === "all")); renderFavs(); }
+  $("#scope-saved").addEventListener("click", () => setScope("saved"));
+  $("#scope-all").addEventListener("click", () => setScope("all"));
   document.getElementById("tuning-open").addEventListener("click", () => setSheet(document.getElementById("tuning")));
   document.getElementById("keys-open").addEventListener("click", () => setSheet(document.getElementById("keys")));
   document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => setSheet(null)));
