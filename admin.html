@@ -195,15 +195,6 @@
     background: radial-gradient(ellipse 90% 60% at 50% 115%, rgba(0,150,190,.30), transparent 65%), linear-gradient(180deg, #01040A, #02101A 85%);
     background-attachment: fixed;
   }
-  /* glowing floor grid, drifting toward you */
-  body::before {
-    content: ""; position: fixed; left: -60%; right: -60%; bottom: 0; height: 58vh; z-index: 0; pointer-events: none;
-    background-image: linear-gradient(rgba(77,235,255,.42) 1px, transparent 1px), linear-gradient(90deg, rgba(77,235,255,.42) 1px, transparent 1px);
-    background-size: 64px 64px; transform: perspective(520px) rotateX(64deg); transform-origin: 50% 100%;
-    -webkit-mask-image: linear-gradient(to top, #000 5%, transparent 88%); mask-image: linear-gradient(to top, #000 5%, transparent 88%);
-    animation: gridflow 3.2s linear infinite;
-  }
-  @keyframes gridflow { from { background-position: 0 0; } to { background-position: 0 64px; } }
   /* faint scanlines + vignette */
   body::after {
     content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none;
@@ -325,16 +316,6 @@
   #boot.on { display: flex; }
   #boot pre { margin: 0; font-family: var(--mono); color: var(--accent); font-size: .95rem; line-height: 1.8; letter-spacing: .08em; text-shadow: 0 0 10px rgba(77,235,255,.7); text-transform: uppercase; }
   /* ---------- accuracy pass: the Grid's signature details ---------- */
-  /* bright horizon line with distant beams of light rising from it */
-  html::after {
-    content: ""; position: fixed; left: 0; right: 0; bottom: 57.5vh; height: 20vh; z-index: 0; pointer-events: none;
-    background:
-      repeating-linear-gradient(90deg, transparent 0 23px, rgba(77,235,255,.20) 23px 24px, transparent 24px 61px, rgba(255,255,255,.14) 61px 62px, transparent 62px 97px, rgba(77,235,255,.12) 97px 99px),
-      linear-gradient(to top, rgba(77,235,255,.20), transparent 70%);
-    -webkit-mask-image: linear-gradient(to top, #000, transparent); mask-image: linear-gradient(to top, #000, transparent);
-    border-bottom: 1px solid rgba(255,255,255,.85);
-    box-shadow: 0 1px 0 rgba(77,235,255,.9), 0 6px 26px 2px rgba(77,235,255,.75);
-  }
   /* light-cycle trail under the header and menu: white-hot core fading into cyan */
   .sysline, .menu { border-bottom: 0; position: relative; }
   .sysline::after, .menu::after {
@@ -360,9 +341,7 @@
   ::-webkit-scrollbar-thumb { background: #0E4F63; border: 1px solid var(--accent); }
   /* ---------- login: a bare terminal window on black ---------- */
   body.login-mode { background: #000; }
-  body.login-mode::before { opacity: .3; }
   body.login-mode::after { background: repeating-linear-gradient(0deg, rgba(120,240,255,.03) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,.8)); }
-  html:has(body.login-mode)::after { opacity: .35; }
   body.login-mode .wrap > h1, body.login-mode .wrap > .term, body.login-mode .wrap > .sysline { display: none; }
   #login.termwin {
     max-width: 520px; width: 100%; margin: 12vh auto 0; padding: 0; gap: 0; display: grid;
@@ -394,7 +373,7 @@
   .tm-in { display: flex; gap: .6rem; align-items: center; border-top: 1px solid rgba(77,235,255,.3); padding-top: .6rem; }
   .tm-in span { white-space: nowrap; }
   .tm-in input { flex: 1; min-width: 0; background: transparent !important; border: 0 !important; box-shadow: none !important; color: #EAFDFF !important; font: inherit; padding: .3rem 0 !important; }
-  @media (prefers-reduced-motion: reduce) { body::before, .cur, .card.live b::before { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .cur, .card.live b::before { animation: none; } }
   @media (max-width: 560px) { h1 { font-size: 1.1rem; letter-spacing: .3em; } .menu button { padding: .55rem .6rem; } }
 </style>
 </head>

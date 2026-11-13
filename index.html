@@ -1458,7 +1458,8 @@
   addEventListener("orientationchange", () => setTimeout(resize, 200));
   if (window.ResizeObserver) new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(resize, 100); }).observe(cv);
 
-  for (let i=0;i<14;i++) lamps.push({ z: i/14, side: i%2 ? 1 : -1 });
+  // 7 matched pairs: a left and a right pole share the same distance, so the avenue is symmetric about the road centre
+  for (let i=0;i<14;i++) lamps.push({ z: (i>>1)/7, side: i%2 ? 1 : -1 });
   for (let i=0;i<9;i++)  cars.push({ z: Math.random(), lane: (Math.random()*3|0)-1, red: Math.random()>.4 });
 
   // Starfield — generated once as relative (0..1) coordinates so it holds
@@ -1493,7 +1494,12 @@
     const s = 1 - z;
     const y = horizonY() + (H - horizonY()) * (s*s);
     const w = W * 0.9 * (s*s) + 4;
-    return { y, x: W/2 + x*w*0.5, w };
+    // Lateral position follows the asphalt's own edges: the road is a trapezoid with a flat
+    // top span (0.045W half-width at the horizon), not a point, so x = ±1 must land exactly on
+    // its edge at every depth. (Scaling by w alone pulled far poles, dashes and cars toward the
+    // centre line, so distant lamps stood on the road instead of beside it.)
+    const t = s*s, half = W*0.045*(1-t) + (W*0.45 + 2)*t;
+    return { y, x: W/2 + x*half, w };
   }
 
   /* Glow sprites — a lamp or taillight glow used to be a fresh
@@ -1630,20 +1636,35 @@
     }
     g.globalAlpha = 1;
 
-    // sodium lamps along the shoulder
-    for (const lp of lamps){
-      lp.z -= v*0.0042; if (lp.z < 0) lp.z += 1;
+    // sodium lamps along the shoulder — mirrored pairs, far to near so nearer poles overlap farther ones
+    const glowLamp = getGlow(rgbFromHex(M.hue));
+    for (const lp of lamps){ lp.z -= v*0.0042; if (lp.z < 0) lp.z += 1; }
+    const lampOrder = lamps.slice().sort((a, b) => b.z - a.z);
+    for (const lp of lampOrder){
       const p = project(lp.z, lp.side*1.28);
       const s = (1-lp.z)*(1-lp.z);
-      const r = Math.max(1, s*16);
-      const glow = getGlow(rgbFromHex(M.hue));
-      const gw = r * 10;
+      if (s < 0.003) continue;
+      const hgt = p.w * 0.11;                    // pole height scales with the same perspective width as the road
+      const arm = p.w * 0.075 * -lp.side;        // arm curves in over the road (toward the centre line)
+      const topY = p.y - hgt;
+      const hx = p.x + arm, hy = topY + hgt * 0.04;   // lamp head
+      const lw = Math.max(.7, s*3.2);
+      g.strokeStyle = "rgba(70,80,100,.7)"; g.lineWidth = lw; g.lineCap = "round";
+      g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x, topY);
+      g.quadraticCurveTo(p.x, topY - hgt*0.07, hx, hy); g.stroke();
+      // lamp head
+      g.fillStyle = "rgba(235,240,250,.95)";
+      const hw = Math.max(1.2, s*9), hh = Math.max(.8, s*3);
+      g.fillRect(hx - hw/2, hy, hw, hh);
+      // glow around the head + soft pool of light on the road beneath it
+      const gw = Math.max(8, hgt * 1.2);
       g.globalAlpha = Math.min(1, 0.62 + bass * 0.38);
-      g.drawImage(glow, p.x - gw/2, (p.y - s*90) - gw/2, gw, gw);
+      g.drawImage(glowLamp, hx - gw/2, hy + hh/2 - gw/2, gw, gw);
+      g.globalAlpha = 0.22 + bass * 0.12;
+      g.drawImage(glowLamp, hx - gw*0.9, p.y - gw*0.12, gw*1.8, gw*0.24);
       g.globalAlpha = 1;
-      g.strokeStyle = "rgba(60,70,90,.55)"; g.lineWidth = Math.max(.6, s*3);
-      g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x, p.y - s*90); g.stroke();
     }
+    g.lineCap = "butt";
 
     // tail lights ahead
     for (const c of cars){
