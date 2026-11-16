@@ -114,6 +114,11 @@
     font-size: .72rem; font-weight: 700; letter-spacing: .2em; text-indent: .2em;
     color: #E8A33D;
   }
+  #continue { margin-top: 1.4rem; max-width: min(86vw, 340px); display: grid; gap: .15rem; text-align: center; background: transparent; border: 1px solid var(--accent); color: var(--ink); border-radius: 999px; padding: .65rem 1.3rem; cursor: pointer; font: inherit; box-shadow: 0 0 18px -6px var(--accent); }
+  #continue[hidden] { display: none; }
+  #continue .c-lbl { font-size: .7rem; letter-spacing: .26em; text-transform: uppercase; color: var(--accent); }
+  #continue .c-sub { font-size: .68rem; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #continue:hover, #continue:focus-visible { background: var(--accent-dim); outline: none; }
   #start .sub { font-size: .62rem; letter-spacing: .16em; color: #5C6779; }
   .hint { font-size: .74rem; color: #4E5869; letter-spacing: .22em; text-indent: .22em; transition: color .4s ease; }
   .preload { display: flex; gap: 7px; justify-content: center; margin-bottom: .9rem; }
@@ -532,6 +537,10 @@
       <span class="sub jp">エンジン始動</span>
     </button>
   </div>
+  <button id="continue" type="button" hidden>
+    <span class="c-lbl">Continue your ride</span>
+    <span class="c-sub" id="continue-sub"></span>
+  </button>
   <div class="preload" id="preload-dots" aria-hidden="true"><span></span><span></span><span></span></div>
   <p class="hint" id="gate-hint">Warming up the engine...</p>
 </div>
@@ -923,9 +932,11 @@
     const hint = document.getElementById("gate-hint");
     const dots = document.getElementById("preload-dots");
     if (hint) { hint.textContent = "ready — press the button or hit space"; hint.classList.add("ready"); }
+    try { paintContinue(); } catch(e){}
     if (dots) dots.classList.add("ready");
   }
 
+  var remoteLoaded = false;   // true once the live library has replaced the built-in fallback list
   async function loadRemoteTracks(){
     if (!supa) { markGateReady(); return; }
     try {
@@ -940,9 +951,11 @@
       // only overwrite a lane that actually has rows — an empty lane in the
       // database (nothing uploaded to it yet) keeps its local fallback
       for (const m of ["slow","cool","hype"]) if (grouped[m].length) TRACKS[m] = grouped[m];
+      remoteLoaded = true;
       if (typeof counts === "function") counts();
       if (typeof recomputeArtists === "function") recomputeArtists();
       if (started && typeof buildOrder === "function") buildOrder();
+      try { paintContinue(); } catch(e){}
       markGateReady();
     } catch(e){ markGateReady(); /* network hiccup — local fallback list still works */ }
   }
@@ -2222,8 +2235,39 @@
   }
 
   /* ================= wiring ================= */
-  $("#start").addEventListener("click", begin);
-  function begin(){
+  $("#start").addEventListener("click", () => begin());
+  $("#continue").addEventListener("click", () => begin(true));
+
+  /* ---- Continue your ride: remember the last song + position on this device ---- */
+  const LAST_KEY = "nightrace.last";
+  let lastRide = null, lastRideSaved = 0;
+  try {
+    const r = JSON.parse(lsGet(LAST_KEY, "null"));
+    if (r && typeof r.src === "string" && typeof r.title === "string") lastRide = { src: r.src, title: r.title.slice(0, 200), artist: String(r.artist || "").slice(0, 200), pos: Math.max(0, +r.pos || 0) };
+  } catch(e){}
+  function paintContinue(){
+    const b = document.getElementById("continue");
+    // Show it whenever a ride is saved. Hide only when the live library has loaded and that song is
+    // really gone; before that (or if the library can't load) the saved link can't be checked yet.
+    if (!lastRide || (remoteLoaded && !laneOf(lastRide.src))) { b.hidden = true; return; }
+    document.getElementById("continue-sub").textContent = lastRide.title + (lastRide.artist && lastRide.artist !== "—" ? " · " + lastRide.artist : "") + (lastRide.pos > 5 ? "  (" + fmt(lastRide.pos) + ")" : "");
+    b.hidden = false;
+  }
+  function rememberRide(el){
+    if (!started || !shownTrack || el !== shown() || !el.duration) return;
+    const now = Date.now(); if (now - lastRideSaved < 4000) return; lastRideSaved = now;
+    const pos = el.currentTime > el.duration - 8 ? 0 : el.currentTime;   // nearly finished: resume from the start
+    lsSet(LAST_KEY, JSON.stringify({ src: shownTrack.src, title: shownTrack.title, artist: shownTrack.artist || "", pos: Math.floor(pos) }));
+  }
+  try { paintContinue(); } catch(e){}
+  function resumeRide(r){
+    playFav({ src: r.src }, true);
+    if (r.pos > 3) {
+      const el = decks[activeIdx], seek = () => { try { el.currentTime = Math.min(r.pos, (el.duration || r.pos + 1) - 1); } catch(e){} };
+      if (el.readyState >= 1) seek(); else el.addEventListener("loadedmetadata", seek, { once: true });
+    }
+  }
+  function begin(resume){
     if (started) return;
     started = true;
     ignition();
@@ -2237,7 +2281,10 @@
     $("#gate").classList.add("off");
     $("#deck").classList.add("on");
     $("#deck").setAttribute("aria-hidden","false");
-    setTimeout(()=> { if (list().length) load(1); }, 1400);
+    setTimeout(()=> {
+      if (resume === true && lastRide && laneOf(lastRide.src)) { resumeRide(lastRide); return; }
+      if (list().length) load(1);
+    }, 1400);
     pingSession();
 
     // Media Session — registering these is what makes Android show working
@@ -2394,6 +2441,7 @@
         $("#fill").style.width = (p*100)+"%";
         $("#t-now").textContent = fmt(el.currentTime);
         $("#bar").setAttribute("aria-valuenow", Math.round(p*100));
+        rememberRide(el);
         // count a play once a song has really been heard (20 s, or half of a very short one)
         if (shownTrack && shownTrack.id && playLogged !== shownTrack.src && el.duration &&
             el.currentTime >= Math.min(20, el.duration / 2)) {
