@@ -373,7 +373,26 @@
   .tm-in { display: flex; gap: .6rem; align-items: center; border-top: 1px solid rgba(77,235,255,.3); padding-top: .6rem; }
   .tm-in span { white-space: nowrap; }
   .tm-in input { flex: 1; min-width: 0; background: transparent !important; border: 0 !important; box-shadow: none !important; color: #EAFDFF !important; font: inherit; padding: .3rem 0 !important; }
-  @media (prefers-reduced-motion: reduce) { .cur, .card.live b::before { animation: none; } }
+  /* ---------- typing, sweeps and the status bar ---------- */
+  #admin { padding-bottom: 3.2rem; }
+  .vprompt { font-family: var(--mono); font-size: .8rem; letter-spacing: .14em; color: var(--accent); text-shadow: 0 0 8px rgba(77,235,255,.5); margin: .2rem 0 .7rem; min-height: 1.2em; }
+  .vprompt::after, .typing::after { content: ""; display: inline-block; width: .55em; height: 1em; margin-left: .25rem; vertical-align: -.15em; background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: blink 1s steps(1) infinite; }
+  .vprompt.idle::after { animation: blink 1s steps(1) infinite; }
+  .menu button { animation: menuin .45s ease both; }
+  .menu button:nth-child(2){animation-delay:.05s}.menu button:nth-child(3){animation-delay:.1s}.menu button:nth-child(4){animation-delay:.15s}.menu button:nth-child(5){animation-delay:.2s}.menu button:nth-child(6){animation-delay:.25s}.menu button:nth-child(7){animation-delay:.3s}.menu button:nth-child(8){animation-delay:.35s}
+  @keyframes menuin { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  .view.on { position: relative; animation: viewin .35s ease both; }
+  .view.on::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; z-index: 5; pointer-events: none; background: linear-gradient(90deg, transparent, #fff, var(--accent), transparent); box-shadow: 0 0 16px var(--accent), 0 0 40px rgba(77,235,255,.5); animation: sweep .9s ease-out forwards; }
+  @keyframes viewin { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes sweep { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(70vh); opacity: 0; } }
+  #statbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; gap: 1.4rem; align-items: center; padding: .45rem 1rem; background: linear-gradient(180deg, rgba(0,12,18,.88), rgba(0,0,0,.96)); border-top: 1px solid var(--accent); box-shadow: 0 -6px 24px rgba(77,235,255,.18); font-family: var(--mono); font-size: .66rem; letter-spacing: .16em; text-transform: uppercase; color: rgba(77,235,255,.7); white-space: nowrap; overflow: hidden; }
+  #statbar b { color: #EAFDFF; font-weight: 600; }
+  #statbar span:first-child::before { content: "\25CF"; color: var(--accent); margin-right: .45rem; animation: blink 1.6s steps(1) infinite; }
+  #statbar .sb-msg { margin-left: auto; color: var(--accent); }
+  #statbar .sb-msg::after { content: "_"; animation: blink 1s steps(1) infinite; }
+  @media (max-width: 560px) { #statbar span:nth-child(3) { display: none; } #statbar { gap: .9rem; } }
+  body.login-mode #statbar { display: none; }
+  @media (prefers-reduced-motion: reduce) { .cur, .card.live b::before, .menu button, .view.on, .view.on::before, #statbar span:first-child::before { animation: none; } .view.on::before { display: none; } }
   @media (max-width: 560px) { h1 { font-size: 1.1rem; letter-spacing: .3em; } .menu button { padding: .55rem .6rem; } }
 </style>
 </head>
@@ -390,7 +409,7 @@
     <div class="tw-body">
       <div class="tw-brand">NIGHT<em>·</em>RACE</div>
       <pre class="tw-log" id="login-log" aria-live="polite"></pre>
-      <label class="tw-line" for="email"><span>login ›</span><input id="email" type="email" autocomplete="username" spellcheck="false" autocapitalize="off" aria-label="User ID"></label>
+      <label class="tw-line" for="email"><span>user id ›</span><input id="email" type="text" autocomplete="username" spellcheck="false" autocapitalize="off" aria-label="User ID"></label>
       <label class="tw-line" for="password"><span>passkey ›</span><input id="password" type="password" autocomplete="current-password" aria-label="Access key"></label>
       <button id="login-btn" type="button">&gt; run authenticate</button>
       <div id="login-error" role="alert"></div>
@@ -398,11 +417,13 @@
   </div>
 
   <div id="admin">
+    <footer id="statbar" aria-hidden="true"><span>GRID ONLINE</span><span>USER <b id="sb-user">—</b></span><span>SESSION <b id="sb-time">00:00:00</b></span><span class="sb-msg" id="sb-msg"></span></footer>
     <header class="bar">
-      <span class="sub" style="margin:0;">&gt; SESSION ACTIVE</span>
+      <span class="sub" style="margin:0;">&gt; SESSION ACTIVE // USER <b id="who">—</b></span>
       <button id="logout" type="button">Disconnect</button>
     </header>
 
+    <div class="vprompt" id="vprompt" aria-hidden="true"></div>
     <nav class="menu" id="menu" aria-label="Admin sections">
       <button type="button" class="on" data-view="overview">Overview</button>
       <button type="button" data-view="tracks">Tracks</button>
@@ -566,6 +587,62 @@
   /* Country: use the recorded one; if the server couldn't see it, guess from the visitor's time zone (shown with ~). */
   const TZ_COUNTRY = { "Asia/Calcutta":"IN","Asia/Kolkata":"IN","Asia/Dhaka":"BD","Asia/Karachi":"PK","Asia/Colombo":"LK","Asia/Kathmandu":"NP","Asia/Dubai":"AE","Asia/Riyadh":"SA","Asia/Qatar":"QA","Asia/Kuwait":"KW","Asia/Singapore":"SG","Asia/Kuala_Lumpur":"MY","Asia/Jakarta":"ID","Asia/Bangkok":"TH","Asia/Ho_Chi_Minh":"VN","Asia/Manila":"PH","Asia/Hong_Kong":"HK","Asia/Shanghai":"CN","Asia/Taipei":"TW","Asia/Seoul":"KR","Asia/Tokyo":"JP","Asia/Tehran":"IR","Asia/Jerusalem":"IL","Asia/Istanbul":"TR","Europe/Istanbul":"TR","Europe/London":"GB","Europe/Dublin":"IE","Europe/Paris":"FR","Europe/Berlin":"DE","Europe/Madrid":"ES","Europe/Rome":"IT","Europe/Amsterdam":"NL","Europe/Brussels":"BE","Europe/Zurich":"CH","Europe/Vienna":"AT","Europe/Stockholm":"SE","Europe/Oslo":"NO","Europe/Copenhagen":"DK","Europe/Helsinki":"FI","Europe/Warsaw":"PL","Europe/Prague":"CZ","Europe/Lisbon":"PT","Europe/Athens":"GR","Europe/Kiev":"UA","Europe/Kyiv":"UA","Europe/Moscow":"RU","America/New_York":"US","America/Chicago":"US","America/Denver":"US","America/Los_Angeles":"US","America/Phoenix":"US","America/Toronto":"CA","America/Vancouver":"CA","America/Mexico_City":"MX","America/Sao_Paulo":"BR","America/Argentina/Buenos_Aires":"AR","America/Bogota":"CO","America/Lima":"PE","America/Santiago":"CL","Africa/Cairo":"EG","Africa/Lagos":"NG","Africa/Johannesburg":"ZA","Africa/Nairobi":"KE","Australia/Sydney":"AU","Australia/Melbourne":"AU","Australia/Perth":"AU","Australia/Brisbane":"AU","Pacific/Auckland":"NZ" };
   const ctryOf = r => (r && r.country) || (r && TZ_COUNTRY[r.tz] ? "~" + TZ_COUNTRY[r.tz] : null);
+  /* ================= user ID login ================= */
+  // Supabase signs in with an email, so a plain user ID is mapped to a login-only address on your own domain.
+  // That address never receives mail. Typing a full email still works.
+  const ADMIN_DOMAIN = "nightrace.pacecorp.in";
+  const toLoginEmail = v => { v = String(v || "").trim().toLowerCase(); return !v ? "" : v.includes("@") ? v : v + "@" + ADMIN_DOMAIN; };
+  const idOf = e => { e = String(e || ""); return e.endsWith("@" + ADMIN_DOMAIN) ? e.slice(0, -(ADMIN_DOMAIN.length + 1)) : e; };
+
+  /* ================= typing animation ================= */
+  const REDUCED = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  function textNodeOf(el){ const n = [...el.childNodes].filter(x => x.nodeType === 3 && x.nodeValue.trim()); return n.length ? n[n.length - 1] : null; }
+  function typeEl(el, speed){
+    if (REDUCED || !el || el.dataset.typed) return;
+    el.dataset.typed = "1";
+    const node = textNodeOf(el); if (!node) return;
+    const full = node.nodeValue; if (full.length > 90) return;
+    node.nodeValue = ""; el.classList.add("typing");
+    let i = 0; const t = setInterval(() => {
+      node.nodeValue = full.slice(0, ++i);
+      if (i >= full.length) { clearInterval(t); el.classList.remove("typing"); }
+    }, speed || 16);
+  }
+  const TYPE_SEL = ".view h3, .view .lane-head h2:not(#lane-title), .wrap > .term, .bar .sub";
+  function typeIn(root, stagger){
+    if (REDUCED) return;
+    root.querySelectorAll(TYPE_SEL).forEach((el, i) => setTimeout(() => typeEl(el), (stagger || 0) * i));
+  }
+  let promptTimer = 0;
+  function typePrompt(text){
+    const el = $("#vprompt"); clearInterval(promptTimer);
+    if (REDUCED) { el.textContent = text; return; }
+    el.textContent = ""; let i = 0;
+    promptTimer = setInterval(() => { el.textContent = text.slice(0, ++i); if (i >= text.length) clearInterval(promptTimer); }, 22);
+  }
+  // headings that arrive later (after data loads) type themselves too
+  new MutationObserver(muts => {
+    for (const m of muts) m.addedNodes.forEach(n => {
+      if (n.nodeType !== 1) return;
+      (n.matches && n.matches(TYPE_SEL) ? [n] : []).concat([...n.querySelectorAll ? n.querySelectorAll(TYPE_SEL) : []]).forEach(el => typeEl(el, 14));
+    });
+  }).observe($("#admin"), { childList: true, subtree: true });
+
+  /* status bar: session clock + rotating typed message */
+  let sbStart = Date.now(), sbMsgTimer = 0, sbIdx = 0;
+  const SB_MSGS = ["STANDING BY", "READY FOR INPUT", "CHANGES GO LIVE ON THE PLAYER", "TYPE >_ FOR THE TERMINAL"];
+  setInterval(() => {
+    const sec = Math.floor((Date.now() - sbStart) / 1000), f = n => String(n).padStart(2, "0");
+    const el = $("#sb-time"); if (el) el.textContent = f(Math.floor(sec / 3600)) + ":" + f(Math.floor(sec / 60) % 60) + ":" + f(sec % 60);
+  }, 1000);
+  function sbType(){
+    const el = $("#sb-msg"), msg = SB_MSGS[sbIdx++ % SB_MSGS.length]; clearInterval(sbMsgTimer);
+    if (REDUCED) { el.textContent = msg; return; }
+    el.textContent = ""; let i = 0;
+    sbMsgTimer = setInterval(() => { el.textContent = msg.slice(0, ++i); if (i >= msg.length) clearInterval(sbMsgTimer); }, 40);
+  }
+  setInterval(() => { if ($("#admin").classList.contains("on")) sbType(); }, 9000);
+
   let loginTyped = false;
   function loginType(){
     if (loginTyped) return; loginTyped = true;
@@ -585,7 +662,12 @@
     document.body.classList.toggle("login-mode", which === "login");
     if (which === "login") loginType();
     $("#admin").classList.toggle("on", which === "admin");
-    if (which === "admin") bootSequence();
+    if (which === "admin") {
+      const id = session && session.user ? idOf(session.user.email) : "—";
+      $("#who").textContent = id; $("#sb-user").textContent = id; sbStart = Date.now(); sbType();
+      bootSequence();
+      typeIn($("#admin"), 120); typePrompt("> GRID/" + (document.querySelector("#menu button.on") || { dataset: { view: "overview" } }).dataset.view.toUpperCase());
+    }
   }
   let booted = false;
   function bootSequence(){
@@ -606,7 +688,7 @@
   })();
   $("#login-btn").addEventListener("click", async () => {
     $("#login-error").textContent = "";
-    const email = $("#email").value.trim(), password = $("#password").value;
+    const email = toLoginEmail($("#email").value), password = $("#password").value;
     if (!email || !password) { $("#login-error").textContent = "enter both fields"; return; }
     const { data, error } = await supa.auth.signInWithPassword({ email, password });
     if (error) { $("#login-error").textContent = error.message; return; }
@@ -954,6 +1036,10 @@
   function showView(name){
     document.querySelectorAll("#menu button").forEach(b => b.classList.toggle("on", b.dataset.view === name));
     VIEWS.forEach(v => $("#v-" + v).classList.toggle("on", v === name));
+    typePrompt("> GRID/" + name.toUpperCase());
+    const view = $("#v-" + name);
+    view.querySelectorAll(TYPE_SEL).forEach(el => { delete el.dataset.typed; });
+    typeIn(view, 110);
     if (name === "overview") loadOverview();
     if (name === "likes") loadLikes();
     if (name === "listeners") loadListeners();
@@ -1089,7 +1175,10 @@
   const COMMANDS = ["help","clear","whoami","tracks","find","likes","plays","listeners","health","licence","export","logout"];
   function termFocus(){ setTimeout(() => tmIn.focus(), 30); }
   function tmPrint(text, cls){
-    const d = document.createElement("div"); if (cls) d.className = cls; d.textContent = text; tmOut.appendChild(d); tmOut.scrollTop = tmOut.scrollHeight;
+    const d = document.createElement("div"); if (cls) d.className = cls; tmOut.appendChild(d);
+    if (REDUCED || cls === "cmd" || text.length < 2) { d.textContent = text; tmOut.scrollTop = tmOut.scrollHeight; return; }
+    const step = Math.max(2, Math.ceil(text.length / 30)); let i = 0;
+    const t = setInterval(() => { i += step; d.textContent = text.slice(0, i); tmOut.scrollTop = tmOut.scrollHeight; if (i >= text.length) clearInterval(t); }, 14);
   }
   const padR = (v, n) => { v = String(v == null ? "" : v); return v.length > n ? v.slice(0, n - 1) + "…" : v.padEnd(n); };
   const padL = (v, n) => String(v == null ? "" : v).padStart(n);
@@ -1100,7 +1189,7 @@
       case "help":
         tmPrint(["help                 this list","clear                clear the screen","whoami               who is signed in","tracks [slow|cool|hype]   list tracks","find <text>          search title / artist","likes                top 10 by likes","plays                top 10 by plays","listeners            audience summary (hashed IP only)","health               check every file plays","licence missing      tracks with no licence","export tracks|credits|licences|listeners   download a file","logout               sign out"].join("\n"), "dim"); break;
       case "clear": tmOut.textContent = ""; break;
-      case "whoami": tmPrint(session && session.user ? session.user.email : "not signed in"); break;
+      case "whoami": tmPrint(session && session.user ? idOf(session.user.email) : "not signed in"); break;
       case "tracks": case "find": {
         const rows = (await buildLikesRows());
         let list = rows;
