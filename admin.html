@@ -563,6 +563,9 @@
     showAs(session ? "admin" : "login");
     if (session) { loadTracks(); loadOverview(); }
   }
+  /* Country: use the recorded one; if the server couldn't see it, guess from the visitor's time zone (shown with ~). */
+  const TZ_COUNTRY = { "Asia/Calcutta":"IN","Asia/Kolkata":"IN","Asia/Dhaka":"BD","Asia/Karachi":"PK","Asia/Colombo":"LK","Asia/Kathmandu":"NP","Asia/Dubai":"AE","Asia/Riyadh":"SA","Asia/Qatar":"QA","Asia/Kuwait":"KW","Asia/Singapore":"SG","Asia/Kuala_Lumpur":"MY","Asia/Jakarta":"ID","Asia/Bangkok":"TH","Asia/Ho_Chi_Minh":"VN","Asia/Manila":"PH","Asia/Hong_Kong":"HK","Asia/Shanghai":"CN","Asia/Taipei":"TW","Asia/Seoul":"KR","Asia/Tokyo":"JP","Asia/Tehran":"IR","Asia/Jerusalem":"IL","Asia/Istanbul":"TR","Europe/Istanbul":"TR","Europe/London":"GB","Europe/Dublin":"IE","Europe/Paris":"FR","Europe/Berlin":"DE","Europe/Madrid":"ES","Europe/Rome":"IT","Europe/Amsterdam":"NL","Europe/Brussels":"BE","Europe/Zurich":"CH","Europe/Vienna":"AT","Europe/Stockholm":"SE","Europe/Oslo":"NO","Europe/Copenhagen":"DK","Europe/Helsinki":"FI","Europe/Warsaw":"PL","Europe/Prague":"CZ","Europe/Lisbon":"PT","Europe/Athens":"GR","Europe/Kiev":"UA","Europe/Kyiv":"UA","Europe/Moscow":"RU","America/New_York":"US","America/Chicago":"US","America/Denver":"US","America/Los_Angeles":"US","America/Phoenix":"US","America/Toronto":"CA","America/Vancouver":"CA","America/Mexico_City":"MX","America/Sao_Paulo":"BR","America/Argentina/Buenos_Aires":"AR","America/Bogota":"CO","America/Lima":"PE","America/Santiago":"CL","Africa/Cairo":"EG","Africa/Lagos":"NG","Africa/Johannesburg":"ZA","Africa/Nairobi":"KE","Australia/Sydney":"AU","Australia/Melbourne":"AU","Australia/Perth":"AU","Australia/Brisbane":"AU","Pacific/Auckland":"NZ" };
+  const ctryOf = r => (r && r.country) || (r && TZ_COUNTRY[r.tz] ? "~" + TZ_COUNTRY[r.tz] : null);
   let loginTyped = false;
   function loginType(){
     if (loginTyped) return; loginTyped = true;
@@ -1069,11 +1072,11 @@
       '<div class="card"><b>' + (data.length ? Math.round(installed / data.length * 100) : 0) + '%</b><span>Installed app</span></div>' +
       '<div class="card"><b>' + new Set(data.map(r => r.ip_hash).filter(Boolean)).size + '</b><span>Unique networks</span></div>';
     $("#listener-breakdowns").innerHTML =
-      bars("Country", data.map(r => r.country)) + bars("Device", data.map(r => r.device_type)) + bars("System", data.map(r => r.os)) +
+      bars("Country", data.map(ctryOf)) + bars("Device", data.map(r => r.device_type)) + bars("System", data.map(r => r.os)) +
       bars("Browser", data.map(r => r.browser)) + bars("Lane", data.map(r => r.lane)) +
-      bars("Time zone", data.map(r => r.tz)) + bars("Screen", data.map(r => r.screen));
+      bars("Time zone", data.map(r => r.tz === "Asia/Calcutta" ? "Asia/Kolkata" : r.tz)) + bars("Screen", data.map(r => r.screen));
     $("#listeners-body").innerHTML = data.slice(0, 40).map(r =>
-      '<tr><td>' + esc(ago(r.last_seen)) + '</td><td>' + esc(r.country || "—") + '</td><td>' + esc(r.device_type) + '</td><td>' + esc(r.os) + '</td><td>' + esc(r.browser) + '</td>' +
+      '<tr><td>' + esc(ago(r.last_seen)) + '</td><td>' + esc(ctryOf(r) || "—") + '</td><td>' + esc(r.device_type) + '</td><td>' + esc(r.os) + '</td><td>' + esc(r.browser) + '</td>' +
       '<td>' + (r.installed ? "installed" : "browser") + '</td><td>' + esc(r.screen) + '</td><td>' + esc(r.lane) + '</td>' +
       '<td class="num">' + esc(r.plays) + '</td><td class="num">' + esc(r.visits) + '</td></tr>'
     ).join("") || '<tr><td colspan="10" class="empty-lane">No listeners recorded yet.</td></tr>';
@@ -1117,7 +1120,7 @@
         if (error) { tmPrint("error: " + error.message, "err"); break; }
         const now = Date.now(), w = ms => data.filter(r => now - new Date(r.last_seen).getTime() <= ms).length;
         tmPrint("live now: " + w(120000) + "   24h: " + w(86400000) + "   7d: " + w(7 * 86400000) + "   all time: " + data.length);
-        const top = key => { const m = {}; data.forEach(r => { const v = r[key] || "unknown"; m[v] = (m[v] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0] + " " + e[1]).join(", "); };
+        const top = key => { const m = {}; data.forEach(r => { const v = (key === "country" ? ctryOf(r) : r[key]) || "unknown"; m[v] = (m[v] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0] + " " + e[1]).join(", "); };
         ["country", "device_type", "os", "browser"].forEach(k => tmPrint(padR(k, 12) + top(k)));
         break; }
       case "health": {
@@ -1382,7 +1385,7 @@
   async function loadOverview(){
     $("#overview-cards").innerHTML = '<div class="empty-lane">Loading…</div>'; $("#overview-panels").innerHTML = "";
     try {
-      const [rows, ses] = await Promise.all([buildLikesRows(), fetchAll("listener_sessions", "last_seen,country,device_type,installed,plays")]);
+      const [rows, ses] = await Promise.all([buildLikesRows(), fetchAll("listener_sessions", "last_seen,country,tz,device_type,installed,plays")]);
       const lanes = { slow: 0, cool: 0, hype: 0 }; rows.forEach(r => { if (lanes[r.mode] != null) lanes[r.mode]++; });
       const up = rows.reduce((a, r) => a + r.up, 0), down = rows.reduce((a, r) => a + r.down, 0);
       const sd = ses.error ? [] : ses.data, now = Date.now(), within = ms => sd.filter(r => now - new Date(r.last_seen).getTime() <= ms).length;
@@ -1406,7 +1409,7 @@
         list("Most liked", top, r => (r.net > 0 ? "+" : "") + r.net) +
         list("Most played", rows.filter(r => r.plays > 0).sort((a, b) => b.plays - a.plays).slice(0, 5), r => "▶ " + r.plays) +
         list("Most disliked", worst, r => "▲" + r.up + " ▼" + r.down) +
-        bars("Country", sd.map(r => r.country)) + bars("Device", sd.map(r => r.device_type));
+        bars("Country", sd.map(ctryOf)) + bars("Device", sd.map(r => r.device_type));
     } catch(e) { $("#overview-cards").innerHTML = '<div class="empty-lane">Couldn\'t load: ' + esc(e.message) + '</div>'; }
   }
   $("#overview-refresh").addEventListener("click", loadOverview);
