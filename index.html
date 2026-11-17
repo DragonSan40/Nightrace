@@ -942,8 +942,8 @@
      After the files are copied to Cloudflare R2, set it to the bucket's public address, e.g.
        const AUDIO_BASE = "https://audio.pacecorp.in/";
      (keep the trailing slash). A song missing there falls back to Supabase automatically. */
-  const AUDIO_BASE = "https://pub-9702021070904703a927a0e5e757af95.r2.dev
-";
+  const AUDIO_BASE_RAW = "https://pub-9702021070904703a927a0e5e757af95.r2.dev/";
+  const AUDIO_BASE = AUDIO_BASE_RAW && !/\/$/.test(AUDIO_BASE_RAW) ? AUDIO_BASE_RAW + "/" : AUDIO_BASE_RAW;   // a missing trailing slash is fixed for you
   const playUrl = t => (AUDIO_BASE && t.path) ? AUDIO_BASE + t.path.split("/").map(encodeURIComponent).join("/") : t.src;
   async function loadRemoteTracks(){
     if (!supa) { markGateReady(); return; }
