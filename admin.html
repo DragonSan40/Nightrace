@@ -571,6 +571,30 @@
   const SUPABASE_URL = "https://opbdbdpbpowwbkukqtcz.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wYmRiZHBicG93d2JrdWtxdGN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4MzI2MTUsImV4cCI6MjEwNjQwODYxNX0.2Iaaakjz_ftDZFv_p3iuvbK7Ig-8gHXB12wHERSyioM";
   const BUCKET = "tracks-audio";
+  /* ---- where the song FILES live ----
+     R2_API empty  -> files stay in Supabase Storage (old behaviour).
+     R2_API set    -> files are uploaded, listed and deleted in Cloudflare R2 through your Worker;
+                      everything else (titles, lanes, likes, listeners, login) stays in Supabase. */
+  const R2_API = "https://nightrace-admin.gargshuklashivam.workers.dev";
+  const R2_PUBLIC = "https://pub-9702021070904703a927a0e5e757af95.r2.dev/";
+  const useR2 = !!R2_API;
+  const r2Url = p => R2_PUBLIC.replace(/\/?$/, "/") + p.split("/").map(encodeURIComponent).join("/");
+  const r2Call = async (path, opts) => {
+    const r = await fetch(R2_API.replace(/\/$/, "") + path, { ...opts, headers: { ...(opts && opts.headers), Authorization: "Bearer " + session.access_token } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+    return j;
+  };
+  async function removeFiles(paths){
+    if (!useR2) return supa.storage.from(BUCKET).remove(paths);
+    try { await r2Call("/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paths }) }); return { error: null }; }
+    catch (e) { return { error: { message: e.message } }; }
+  }
+  async function listFiles(lane){
+    if (!useR2) return supa.storage.from(BUCKET).list(lane, { limit: 1000 });
+    try { const j = await r2Call("/list?prefix=" + encodeURIComponent(lane + "/")); return { data: j.files.map(f => ({ name: f.path.slice(lane.length + 1), metadata: { size: f.size } })), error: null }; }
+    catch (e) { return { data: null, error: { message: e.message } }; }
+  }
   const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   const $ = s => document.querySelector(s);
@@ -785,9 +809,9 @@
 
     const path = mode + "/" + Date.now() + "-" + slugify(file.name) + ".mp3";
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", SUPABASE_URL + "/storage/v1/object/" + BUCKET + "/" + path);
+    if (useR2) xhr.open("PUT", R2_API.replace(/\/$/, "") + "/upload?path=" + encodeURIComponent(path));
+    else { xhr.open("POST", SUPABASE_URL + "/storage/v1/object/" + BUCKET + "/" + path); xhr.setRequestHeader("apikey", SUPABASE_ANON_KEY); }
     xhr.setRequestHeader("Authorization", "Bearer " + session.access_token);
-    xhr.setRequestHeader("apikey", SUPABASE_ANON_KEY);
     xhr.setRequestHeader("Content-Type", file.type || "audio/mpeg");
     xhr.upload.onprogress = e => {
       if (!e.lengthComputable) return;
@@ -964,7 +988,7 @@
       });
       row.querySelector(".del").addEventListener("click", async () => {
         if (!confirm('Delete "' + t.title + '"? This removes the audio file too.')) return;
-        const { error: storErr } = await supa.storage.from(BUCKET).remove([t.path]);
+        const { error: storErr } = await removeFiles([t.path]);
         if (storErr) setStatus("Warning — audio file may not have been removed: " + storErr.message, true);
         const { error: delErr } = await supa.from("tracks").delete().eq("id", t.id);
         if (delErr) { setStatus("Delete failed: " + delErr.message, true); return; }
@@ -1019,7 +1043,7 @@
 
     const paths = (rows || []).map(r => r.path);
     if (paths.length) {
-      const { error: storErr } = await supa.storage.from(BUCKET).remove(paths);
+      const { error: storErr } = await removeFiles(paths);
       if (storErr) setStatus("Warning — some audio files may not have been removed: " + storErr.message, true);
     }
 
@@ -1303,7 +1327,7 @@
   const pv = $("#pv-audio");
   let pvTrackId = null;
   const mmss = x => isFinite(x) ? Math.floor(x / 60) + ":" + String(Math.floor(x % 60)).padStart(2, "0") : "0:00";
-  function publicUrl(path){ return supa.storage.from(BUCKET).getPublicUrl(path).data.publicUrl; }
+  function publicUrl(path){ return useR2 ? r2Url(path) : supa.storage.from(BUCKET).getPublicUrl(path).data.publicUrl; }
   function markPlaying(){
     document.querySelectorAll(".track").forEach(r => r.classList.toggle("playing", r.dataset.id === pvTrackId));
     document.querySelectorAll(".track .pv").forEach(b => { b.textContent = (b.closest(".track").dataset.id === pvTrackId && !pv.paused) ? "⏸" : "▶"; });
@@ -1402,7 +1426,7 @@
     $("#health-body").querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", async () => {
       const r = healthRows.find(x => x.t.id === b.dataset.del); if (!r) return;
       if (!confirm('Delete "' + r.t.title + '"? This removes the song and its file (if any).')) return;
-      await supa.storage.from(BUCKET).remove([r.t.path]);
+      await removeFiles([r.t.path]);
       const { error } = await supa.from("tracks").delete().eq("id", r.t.id);
       if (error) { setStatus("Delete failed: " + error.message, true); return; }
       healthRows = healthRows.filter(x => x.t.id !== r.t.id); renderHealth(); setStatus("Deleted.");
@@ -1437,7 +1461,7 @@
       // leftover files: in storage but not used by any song
       const known = new Set(tracks.map(t => t.path)); orphanFiles = []; let listFailed = false;
       for (const lane of ["slow", "cool", "hype"]) {
-        const { data, error } = await supa.storage.from(BUCKET).list(lane, { limit: 1000 });
+        const { data, error } = await listFiles(lane);
         if (error) { listFailed = true; continue; }
         (data || []).forEach(f => { if (f.name && f.name !== ".emptyFolderPlaceholder" && !known.has(lane + "/" + f.name)) orphanFiles.push({ path: lane + "/" + f.name, size: (f.metadata && f.metadata.size) || 0 }); });
       }
@@ -1456,7 +1480,7 @@
           '<p class="note">These files are in storage but no song points at them, usually from an interrupted upload or a song deleted by hand.</p>';
         $("#orphan-del").addEventListener("click", async () => {
           if (!confirm("Permanently delete " + orphanFiles.length + " unused files?")) return;
-          const { error } = await supa.storage.from(BUCKET).remove(orphanFiles.map(f => f.path));
+          const { error } = await removeFiles(orphanFiles.map(f => f.path));
           setStatus(error ? "Failed: " + error.message : orphanFiles.length + " unused files deleted.", !!error);
           if (!error) { orphanFiles = []; $("#orphans").innerHTML = ""; }
         });
