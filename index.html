@@ -2385,6 +2385,9 @@
 
   document.addEventListener("visibilitychange", () => {
     logEv("page " + document.visibilityState);
+    // In the background nothing is drawn, so give the canvas memory back to the phone (a smaller footprint
+    // makes Android less likely to close the app while you use something else). It is rebuilt on return.
+    if (document.visibilityState === "hidden") { try { cv.width = 1; cv.height = 1; } catch(e){} }
     if (document.visibilityState === "visible") {
       if (ctx && ctx.state !== "running" && started && !decks[activeIdx].paused) ctx.resume().catch(()=>{});
       resize();
