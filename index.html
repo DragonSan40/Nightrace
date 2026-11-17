@@ -1011,7 +1011,18 @@
   /* Small event log so a phone problem can be diagnosed without a computer:
      Garage > "Copy debug info" puts it on the clipboard. */
   const nrLog = [];
-  function logEv(m){ nrLog.push(new Date().toISOString().slice(11, 19) + " " + m + (document.hidden ? " [hidden]" : "")); if (nrLog.length > 80) nrLog.shift(); }
+  // The log and a heartbeat are kept in localStorage so that, if the phone closes the app,
+  // the NEXT visit can show what happened right before (see "Copy debug info").
+  let prevSession = null;
+  try {
+    const old = JSON.parse(localStorage.getItem("nightrace.log") || "null"), alive = +localStorage.getItem("nightrace.alive") || 0, clean = localStorage.getItem("nightrace.clean");
+    if (old && alive) prevSession = { endedCleanly: clean === "1", lastAliveSecondsAgo: Math.round((Date.now() - alive) / 1000), log: old };
+    localStorage.setItem("nightrace.clean", "0");
+  } catch(e){}
+  function saveLog(){ try { localStorage.setItem("nightrace.log", JSON.stringify(nrLog.slice(-60))); } catch(e){} }
+  function logEv(m){ nrLog.push(new Date().toISOString().slice(11, 19) + " " + m + (document.hidden ? " [hidden]" : "")); if (nrLog.length > 80) nrLog.shift(); saveLog(); }
+  setInterval(() => { try { localStorage.setItem("nightrace.alive", String(Date.now())); } catch(e){} }, 5000);
+  addEventListener("pagehide", () => { try { localStorage.setItem("nightrace.clean", "1"); } catch(e){} });
   /* "fading" is cleared by a timer. Phones throttle or freeze timers when the
      screen is off, which used to leave it stuck on forever and silently stop
      the next song. If a fade has been running far longer than it should, it
@@ -2665,6 +2676,7 @@
   window.nrDebug = function(){
     return {
       log: nrLog.slice(),
+      previousSession: prevSession,   // endedCleanly:false = the app was closed by the system, not by the page
       audioContextState: ctx ? ctx.state : "(no AudioContext created yet)",
       masterVolume,
       fading,
