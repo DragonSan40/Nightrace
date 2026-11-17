@@ -937,6 +937,13 @@
   }
 
   var remoteLoaded = false;   // true once the live library has replaced the built-in fallback list
+  /* ---- where the songs are streamed from ----
+     Leave AUDIO_BASE empty to stream from Supabase Storage (the default).
+     After the files are copied to Cloudflare R2, set it to the bucket's public address, e.g.
+       const AUDIO_BASE = "https://audio.pacecorp.in/";
+     (keep the trailing slash). A song missing there falls back to Supabase automatically. */
+  const AUDIO_BASE = "";
+  const playUrl = t => (AUDIO_BASE && t.path) ? AUDIO_BASE + t.path.split("/").map(encodeURIComponent).join("/") : t.src;
   async function loadRemoteTracks(){
     if (!supa) { markGateReady(); return; }
     try {
@@ -946,7 +953,7 @@
       for (const row of data) {
         if (!grouped[row.mode]) continue;
         const pub = supa.storage.from("tracks-audio").getPublicUrl(row.path);
-        grouped[row.mode].push({ id: row.id, title: row.title, artist: row.artist || "—", src: pub.data.publicUrl, intro: !!row.intro });
+        grouped[row.mode].push({ id: row.id, title: row.title, artist: row.artist || "—", src: pub.data.publicUrl, path: row.path, intro: !!row.intro });
       }
       // only overwrite a lane that actually has rows — an empty lane in the
       // database (nothing uploaded to it yet) keeps its local fallback
@@ -1895,7 +1902,7 @@
     const go = () => {
       if (token !== fadeToken) return;
       const inc = decks[inIdx];
-      inc.src = t.src; inc.currentTime = 0;
+      inc._alt = playUrl(t) !== t.src ? t.src : null; inc.src = playUrl(t); inc.currentTime = 0;
       setDeckGain(inIdx, 0);
       inc.play().catch(()=>{});
       rampDeck(inIdx, 1, ms / 1000);
@@ -1921,7 +1928,7 @@
     fading = false; fadingOutDeck = null;
     const i = activeIdx, cur = decks[i];
     decks[1 - i].pause(); setDeckGain(1 - i, 0);
-    cur.src = t.src; cur.currentTime = 0; setDeckGain(i, 1);
+    cur._alt = playUrl(t) !== t.src ? t.src : null; cur.src = playUrl(t); cur.currentTime = 0; setDeckGain(i, 1);
     shownIdx = i; paint(t);
     if (autoplay) cur.play().catch(()=>{}); else cur.pause();
     icon();
@@ -2428,6 +2435,8 @@
     el.addEventListener("stalled", ()=>{ if (el === active()) logEv("stalled"); });
     el.addEventListener("waiting", ()=>{ if (el === active()) logEv("waiting"); });
     el.addEventListener("error", ()=>{
+      // the Cloudflare copy is missing or unreachable: quietly use the Supabase copy of the same song
+      if (el._alt && el.src !== el._alt) { const alt = el._alt; el._alt = null; logEv("r2 miss, using supabase"); el.src = alt; el.currentTime = 0; el.play().catch(()=>{}); return; }
       if (el !== active() || !el.src) return;
       logEv("error " + (el.error ? el.error.code : "?"));
       $("#np-sub").textContent = "Couldn't load this track. Skipping…";
