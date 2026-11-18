@@ -2512,11 +2512,30 @@
     gearEl.setAttribute("aria-valuenow", g);
     gearEl.setAttribute("aria-valuetext", g === 0 ? "Neutral, muted" : "Gear " + g);
   }
+  /* The "clunk" of a gear change: the road shakes, the whole panel kicks like a car's body
+     when the clutch bites (up-shift pitches back, down-shift lurches forward), and the phone buzzes. */
+  function gearJerk(dir, steps){
+    if (navigator.vibrate) navigator.vibrate(dir > 0 ? [14, 36, 10] : [22, 30]);
+    if (reduced) return;
+    shake = Math.min(1.6, shake + 0.45 + 0.2 * steps);
+    const el = document.querySelector(".stage");
+    if (el && el.animate) {
+      const k = Math.min(1.6, 1 + 0.2 * (steps - 1));
+      el.animate([
+        { transform: "translateY(0)" },
+        { transform: "translateY(" + (dir * 5 * k) + "px)", offset: 0.25 },
+        { transform: "translateY(" + (-dir * 2.5 * k) + "px)", offset: 0.6 },
+        { transform: "translateY(0)" }
+      ], { duration: 320, easing: "ease-out" });
+    }
+  }
   function setGear(g){
     g = Math.min(6, Math.max(0, g));
     if (g === curGear) return;
+    const prev = curGear;
     paintGear(g);
-    if (navigator.vibrate) navigator.vibrate(8);
+    if (prev >= 0) gearJerk(g > prev ? 1 : -1, Math.abs(g - prev));
+    else if (navigator.vibrate) navigator.vibrate(8);
     const v = $("#vol"); v.value = GEARS[g];
     v.dispatchEvent(new Event("input"));
   }
