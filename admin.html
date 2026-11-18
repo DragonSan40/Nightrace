@@ -354,6 +354,17 @@
   .tw-title { margin-left: .5rem; text-transform: uppercase; }
   .tw-clock { margin-left: auto; opacity: .7; font-family: var(--mono); letter-spacing: .1em; }
   .tw-body { padding: 1.4rem 1.4rem 1.5rem; display: grid; gap: .9rem; }
+  /* browsers paint saved logins pale blue; keep them dark like the rest of the terminal */
+  input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, input:-webkit-autofill:active,
+  textarea:-webkit-autofill, select:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px #020b10 inset !important;
+    box-shadow: 0 0 0 1000px #020b10 inset !important;
+    -webkit-text-fill-color: #EAFDFF !important;
+    caret-color: #EAFDFF;
+    border-color: inherit;
+    transition: background-color 99999s ease-in-out 0s;
+  }
+  input:autofill { background-color: #020b10 !important; color: #EAFDFF !important; }
   .tw-brand { font-family: var(--tech); font-weight: 800; font-size: 1.7rem; letter-spacing: .4em; color: #EAFDFF; text-shadow: 0 0 6px #fff, 0 0 20px rgba(77,235,255,.9); margin-bottom: .2rem; }
   .tw-brand em { font-style: normal; color: var(--accent); }
   .tw-log { margin: 0; min-height: 5.4em; font-family: var(--mono); font-size: .8rem; line-height: 1.8; letter-spacing: .08em; color: var(--accent); text-shadow: 0 0 8px rgba(77,235,255,.55); text-transform: uppercase; white-space: pre-wrap; }
