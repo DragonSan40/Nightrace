@@ -845,10 +845,13 @@
         loadTracks();
       } else {
         row.classList.add("error");
+        let why = ""; try { const j = JSON.parse(xhr.responseText); why = j.error || j.message || ""; } catch(e){}
         row.querySelector(".pct").textContent = "failed (" + xhr.status + ")";
+        row.querySelector(".pct").title = (useR2 ? "R2 Worker: " : "Supabase: ") + (why || "no details");
+        setStatus("Upload failed (" + xhr.status + ") via " + (useR2 ? "the R2 Worker" : "Supabase Storage") + (why ? ": " + why : "") + (useR2 && xhr.status === 403 && /not an admin/.test(why) ? " — your login email is not in the Worker's ADMIN_EMAILS." : ""), true);
       }
     };
-    xhr.onerror = () => { row.classList.add("error"); row.querySelector(".pct").textContent = "network error"; };
+    xhr.onerror = () => { row.classList.add("error"); row.querySelector(".pct").textContent = "network error"; setStatus(useR2 ? "Network error reaching the R2 Worker. Check R2_API in admin.html and the Worker's ALLOWED_ORIGIN." : "Network error during upload.", true); };
     xhr.send(file);
   }
 
