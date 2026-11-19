@@ -403,6 +403,17 @@
   #statbar .sb-msg::after { content: "_"; animation: blink 1s steps(1) infinite; }
   @media (max-width: 560px) { #statbar span:nth-child(3) { display: none; } #statbar { gap: .9rem; } }
   body.login-mode #statbar { display: none; }
+  /* ---------- fleet map ---------- */
+  .btn.on { background: rgba(77,235,255,.2); box-shadow: 0 0 14px rgba(77,235,255,.45), inset 0 0 10px rgba(77,235,255,.15); color: #fff; }
+  .maplayout { display: grid; grid-template-columns: minmax(0, 720px) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+  @media (max-width: 900px) { .maplayout { grid-template-columns: 1fr; } }
+  .mapwrap { position: relative; }
+  #map-canvas { display: block; width: 100%; background: radial-gradient(ellipse at center, rgba(4,20,30,.9), rgba(0,4,8,.95)); border: 1px solid rgba(77,235,255,.4); box-shadow: 0 0 24px rgba(77,235,255,.12), inset 0 0 40px rgba(0,0,0,.6); cursor: grab; touch-action: none; }
+  #map-canvas.drag { cursor: grabbing; }
+  #map-tip { position: absolute; display: none; pointer-events: none; z-index: 6; background: rgba(0,12,18,.95); border: 1px solid var(--accent); padding: .35rem .55rem; font-family: var(--mono); font-size: .7rem; letter-spacing: .06em; color: #EAFDFF; white-space: nowrap; box-shadow: 0 0 14px rgba(77,235,255,.3); }
+  .mapplaces .pl { display: flex; justify-content: space-between; gap: .8rem; padding: .45rem .1rem; border-bottom: 1px solid rgba(77,235,255,.18); font-family: var(--mono); font-size: .76rem; letter-spacing: .05em; }
+  .mapplaces .pl b { color: #EAFDFF; font-weight: 600; } .mapplaces .pl span { color: rgba(77,235,255,.7); }
+  .mapplaces .pl i { font-style: normal; color: var(--danger); }
   @media (prefers-reduced-motion: reduce) { .cur, .card.live b::before, .menu button, .view.on, .view.on::before, #statbar span:first-child::before { animation: none; } .view.on::before { display: none; } }
   @media (max-width: 560px) { h1 { font-size: 1.1rem; letter-spacing: .3em; } .menu button { padding: .55rem .6rem; } }
 </style>
@@ -440,6 +451,7 @@
       <button type="button" data-view="tracks">Tracks</button>
       <button type="button" data-view="likes">Likes</button>
       <button type="button" data-view="listeners">Listeners</button>
+      <button type="button" data-view="map">Fleet map</button>
       <button type="button" data-view="health">Health</button>
       <button type="button" data-view="downloader">Downloader</button>
       <button type="button" data-view="terminal">&gt;_ Terminal</button>
@@ -517,7 +529,17 @@
       <div class="cards" id="listener-cards"></div>
       <div class="grid2" id="listener-breakdowns"></div>
       <div class="lane-head"><h2>Recent listeners</h2></div>
-      <div class="tablewrap"><table class="data"><thead><tr><th>Last seen</th><th>Country</th><th>Device</th><th>System</th><th>Browser</th><th>App</th><th>Screen</th><th>Lane</th><th class="num">Plays</th><th class="num">Visits</th></tr></thead><tbody id="listeners-body"></tbody></table></div>
+      <div class="tablewrap"><table class="data"><thead><tr><th>Last seen</th><th>Place</th><th>Device</th><th>System</th><th>Browser</th><th>App</th><th>Screen</th><th>Lane</th><th class="num">Plays</th><th class="num">Visits</th></tr></thead><tbody id="listeners-body"></tbody></table></div>
+    </section>
+
+    <section class="view" id="v-map">
+      <p class="note">Where listeners are, from their IP address at their last visit. City level and approximate. The IP itself is never stored, only the place it maps to (needs <b>supabase-geo.sql</b> and the updated <b>hello</b> function).</p>
+      <div class="toolbar"><button class="btn on" id="map-world" type="button">World</button><button class="btn" id="map-india" type="button">India</button><button class="btn" id="map-refresh" type="button">↻ Refresh</button><span class="note" id="map-status" style="margin:0"></span></div>
+      <div class="cards" id="map-cards"></div>
+      <div class="maplayout">
+        <div class="mapwrap"><canvas id="map-canvas" aria-label="Map of listener locations"></canvas><div id="map-tip"></div></div>
+        <div><div class="lane-head"><h3>Top places</h3></div><div id="map-places" class="mapplaces"></div></div>
+      </div>
     </section>
 
     <section class="view" id="v-health">
@@ -621,6 +643,7 @@
   }
   /* Country: use the recorded one; if the server couldn't see it, guess from the visitor's time zone (shown with ~). */
   const TZ_COUNTRY = { "Asia/Calcutta":"IN","Asia/Kolkata":"IN","Asia/Dhaka":"BD","Asia/Karachi":"PK","Asia/Colombo":"LK","Asia/Kathmandu":"NP","Asia/Dubai":"AE","Asia/Riyadh":"SA","Asia/Qatar":"QA","Asia/Kuwait":"KW","Asia/Singapore":"SG","Asia/Kuala_Lumpur":"MY","Asia/Jakarta":"ID","Asia/Bangkok":"TH","Asia/Ho_Chi_Minh":"VN","Asia/Manila":"PH","Asia/Hong_Kong":"HK","Asia/Shanghai":"CN","Asia/Taipei":"TW","Asia/Seoul":"KR","Asia/Tokyo":"JP","Asia/Tehran":"IR","Asia/Jerusalem":"IL","Asia/Istanbul":"TR","Europe/Istanbul":"TR","Europe/London":"GB","Europe/Dublin":"IE","Europe/Paris":"FR","Europe/Berlin":"DE","Europe/Madrid":"ES","Europe/Rome":"IT","Europe/Amsterdam":"NL","Europe/Brussels":"BE","Europe/Zurich":"CH","Europe/Vienna":"AT","Europe/Stockholm":"SE","Europe/Oslo":"NO","Europe/Copenhagen":"DK","Europe/Helsinki":"FI","Europe/Warsaw":"PL","Europe/Prague":"CZ","Europe/Lisbon":"PT","Europe/Athens":"GR","Europe/Kiev":"UA","Europe/Kyiv":"UA","Europe/Moscow":"RU","America/New_York":"US","America/Chicago":"US","America/Denver":"US","America/Los_Angeles":"US","America/Phoenix":"US","America/Toronto":"CA","America/Vancouver":"CA","America/Mexico_City":"MX","America/Sao_Paulo":"BR","America/Argentina/Buenos_Aires":"AR","America/Bogota":"CO","America/Lima":"PE","America/Santiago":"CL","Africa/Cairo":"EG","Africa/Lagos":"NG","Africa/Johannesburg":"ZA","Africa/Nairobi":"KE","Australia/Sydney":"AU","Australia/Melbourne":"AU","Australia/Perth":"AU","Australia/Brisbane":"AU","Pacific/Auckland":"NZ" };
+  const placeOf = r => ((r && r.city) ? r.city + ", " : "") + ((r && ctryOf(r)) || "—");
   const ctryOf = r => (r && r.country) || (r && TZ_COUNTRY[r.tz] ? "~" + TZ_COUNTRY[r.tz] : null);
   /* ================= user ID login ================= */
   // Supabase signs in with an email, so a plain user ID is mapped to a login-only address on your own domain.
@@ -1070,7 +1093,7 @@
   });
 
   /* ================= menu ================= */
-  const VIEWS = ["overview","tracks","likes","listeners","health","downloader","terminal","tools"];
+  const VIEWS = ["overview","tracks","likes","listeners","map","health","downloader","terminal","tools"];
   function showView(name){
     document.querySelectorAll("#menu button").forEach(b => b.classList.toggle("on", b.dataset.view === name));
     VIEWS.forEach(v => $("#v-" + v).classList.toggle("on", v === name));
@@ -1081,6 +1104,7 @@
     if (name === "overview") loadOverview();
     if (name === "likes") loadLikes();
     if (name === "listeners") loadListeners();
+    if (name === "map") startMap(); else stopMap();
     if (name === "terminal") termFocus();
   }
   document.querySelectorAll("#menu button").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
@@ -1200,17 +1224,148 @@
       bars("Browser", data.map(r => r.browser)) + bars("Lane", data.map(r => r.lane)) +
       bars("Time zone", data.map(r => r.tz === "Asia/Calcutta" ? "Asia/Kolkata" : r.tz)) + bars("Screen", data.map(r => r.screen));
     $("#listeners-body").innerHTML = data.slice(0, 40).map(r =>
-      '<tr><td>' + esc(ago(r.last_seen)) + '</td><td>' + esc(ctryOf(r) || "—") + '</td><td>' + esc(r.device_type) + '</td><td>' + esc(r.os) + '</td><td>' + esc(r.browser) + '</td>' +
+      '<tr><td>' + esc(ago(r.last_seen)) + '</td><td>' + esc(placeOf(r)) + '</td><td>' + esc(r.device_type) + '</td><td>' + esc(r.os) + '</td><td>' + esc(r.browser) + '</td>' +
       '<td>' + (r.installed ? "installed" : "browser") + '</td><td>' + esc(r.screen) + '</td><td>' + esc(r.lane) + '</td>' +
       '<td class="num">' + esc(r.plays) + '</td><td class="num">' + esc(r.visits) + '</td></tr>'
     ).join("") || '<tr><td colspan="10" class="empty-lane">No listeners recorded yet.</td></tr>';
   }
   $("#listeners-refresh").addEventListener("click", loadListeners);
 
+  /* ================= fleet map ================= */
+  // Land comes from the public Natural Earth outlines (world-atlas), turned into a grid of dots in the browser.
+  const MAP_WORLD_SRC = "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/land-110m.json";
+  const MAP_INDIA_SRC = "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/land-50m.json";
+  const IN_BOX = { lon0: 66, lon1: 100, lat0: 5, lat1: 38 };
+  const mp = { mode: "world", lon: 78, lat: 20, drag: null, masks: {}, places: [], raf: 0, hover: null, hoverXY: null, running: false, status: "" };
+  function topoToPolys(topo, geom){
+    const tr = topo.transform, sc = tr ? tr.scale : [1, 1], tl = tr ? tr.translate : [0, 0];
+    const arcs = topo.arcs.map(a => { let x = 0, y = 0; return a.map(p => tr ? [(x += p[0]) * sc[0] + tl[0], (y += p[1]) * sc[1] + tl[1]] : p); });
+    const arc = i => i >= 0 ? arcs[i] : arcs[~i].slice().reverse();
+    const ring = idx => { let out = []; idx.forEach((i, k) => { const a = arc(i); out = out.concat(k ? a.slice(1) : a); }); return out; };
+    const polys = [];
+    const walk = g => { if (g.type === "Polygon") polys.push(g.arcs.map(ring)); else if (g.type === "MultiPolygon") g.arcs.forEach(q => polys.push(q.map(ring))); else if (g.type === "GeometryCollection") g.geometries.forEach(walk); };
+    walk(geom); return polys;
+  }
+  async function buildMask(kind){
+    if (mp.masks[kind]) return mp.masks[kind];
+    let topo;
+    try { topo = await (await fetch(kind === "india" ? MAP_INDIA_SRC : MAP_WORLD_SRC)).json(); }
+    catch(e){ if (kind === "india") return buildMask("world"); throw e; }
+    const obj = topo.objects.land || Object.values(topo.objects)[0];
+    const MW = 1440, MH = 720, c = document.createElement("canvas"); c.width = MW; c.height = MH;
+    const g = c.getContext("2d"); g.fillStyle = "#000"; g.fillRect(0, 0, MW, MH); g.fillStyle = "#fff";
+    const X = lon => (lon + 180) / 360 * MW, Y = lat => (90 - lat) / 180 * MH;
+    topoToPolys(topo, obj).forEach(rings => { g.beginPath(); rings.forEach(r => { r.forEach((pt, i) => i ? g.lineTo(X(pt[0]), Y(pt[1])) : g.moveTo(X(pt[0]), Y(pt[1]))); g.closePath(); }); g.fill("evenodd"); });
+    const d = g.getImageData(0, 0, MW, MH).data;
+    const land = (lat, lon) => d[(Math.min(MH - 1, Math.max(0, Math.floor((90 - lat) / 180 * MH))) * MW + Math.min(MW - 1, Math.max(0, Math.floor((lon + 180) / 360 * MW)))) * 4] > 127;
+    const worldDots = [], indiaDots = [];
+    for (let la = -88; la <= 88; la += 2) for (let lo = -180; lo < 180; lo += 2) if (land(la, lo)) worldDots.push([la, lo]);
+    for (let la = IN_BOX.lat0; la <= IN_BOX.lat1; la += 0.5) for (let lo = IN_BOX.lon0; lo <= IN_BOX.lon1; lo += 0.5) if (land(la, lo)) indiaDots.push([la, lo]);
+    mp.masks.world = worldDots; mp.masks.india = indiaDots;
+    return mp.masks[kind];
+  }
+  function mapPlaces(){
+    const now = Date.now(), by = {};
+    listenerRows.forEach(r => {
+      if (r.lat == null || r.lon == null) return;
+      const k = (+r.lat).toFixed(1) + "," + (+r.lon).toFixed(1);
+      const p = by[k] || (by[k] = { lat: +r.lat, lon: +r.lon, city: r.city || "", region: r.region || "", country: r.country || "", n: 0, live: 0, last: 0 });
+      p.n++; const t = new Date(r.last_seen).getTime(); if (now - t <= 120000) p.live++; if (t > p.last) p.last = t;
+    });
+    return Object.values(by).sort((a, b) => b.n - a.n);
+  }
+  async function loadMap(){
+    $("#map-status").textContent = "loading…";
+    const { data, error } = await fetchAll("listener_sessions", "*", { col: "last_seen", asc: false });
+    if (error) { $("#map-status").textContent = "couldn't load: " + error.message; return; }
+    listenerRows = data; mp.places = mapPlaces();
+    const located = data.filter(r => r.lat != null && r.lon != null).length, live = mp.places.reduce((a, p) => a + p.live, 0);
+    const countries = new Set(mp.places.map(p => p.country).filter(Boolean)).size;
+    $("#map-cards").innerHTML = '<div class="card live"><b>' + live + '</b><span>Live on map</span></div><div class="card"><b>' + located + '/' + data.length + '</b><span>Located</span></div><div class="card"><b>' + mp.places.length + '</b><span>Places</span></div><div class="card"><b>' + countries + '</b><span>Countries</span></div>';
+    $("#map-places").innerHTML = mp.places.slice(0, 12).map(p => '<div class="pl"><b>' + esc((p.city || "Unknown city") + (p.country ? ", " + p.country : "")) + '</b><span>' + p.n + (p.n === 1 ? " listener" : " listeners") + (p.live ? ' <i>● ' + p.live + ' live</i>' : "") + ' · ' + esc(ago(new Date(p.last).toISOString())) + '</span></div>').join("") ||
+      '<div class="empty-lane">No locations yet. Run supabase-geo.sql, deploy the updated hello function, and places appear as listeners visit.</div>';
+    // start the globe facing the busiest place
+    if (mp.places[0] && !mp.centered) { mp.lon = mp.places[0].lon; mp.lat = Math.max(-45, Math.min(55, mp.places[0].lat)); mp.centered = true; }
+    $("#map-status").textContent = "";
+    try { await buildMask(mp.mode); } catch(e){ $("#map-status").textContent = "map outline couldn't load (" + e.message + "), showing the grid only"; }
+  }
+  function mapView(){
+    const cv = $("#map-canvas"), dpr = Math.min(window.devicePixelRatio || 1, 2), W = cv.clientWidth || 600, H = Math.round(mp.mode === "india" ? W : Math.min(W, 560));
+    if (cv.height !== Math.round(H * dpr) || cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.height = H + "px"; }
+    return { cv, W, H, dpr };
+  }
+  function drawMap(t){
+    const { cv, W, H, dpr } = mapView(), g = cv.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    const rad = Math.PI / 180, spots = [];
+    if (mp.mode === "world") {
+      const R = Math.min(W, H) * 0.44, cx = W / 2, cy = H / 2, l0 = mp.lon * rad, f0 = mp.lat * rad, s0 = Math.sin(f0), c0 = Math.cos(f0);
+      const grad = g.createRadialGradient(cx - R * .3, cy - R * .3, R * .1, cx, cy, R);
+      grad.addColorStop(0, "rgba(10,34,52,.95)"); grad.addColorStop(1, "rgba(1,8,14,.98)");
+      g.fillStyle = grad; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fill();
+      g.strokeStyle = "rgba(77,235,255,.55)"; g.lineWidth = 1; g.shadowColor = "#4DEBFF"; g.shadowBlur = 14; g.stroke(); g.shadowBlur = 0;
+      const proj = (lat, lon) => { const f = lat * rad, dl = lon * rad - l0, cc = s0 * Math.sin(f) + c0 * Math.cos(f) * Math.cos(dl); return { x: cx + R * Math.cos(f) * Math.sin(dl), y: cy - R * (c0 * Math.sin(f) - s0 * Math.cos(f) * Math.cos(dl)), c: cc }; };
+      const dots = mp.masks.world;
+      if (dots) for (const d of dots) { const q = proj(d[0], d[1]); if (q.c <= 0.02) continue; g.fillStyle = "rgba(77,235,255," + (0.12 + 0.55 * q.c).toFixed(2) + ")"; const sz = 1 + 1.7 * q.c; g.fillRect(q.x - sz / 2, q.y - sz / 2, sz, sz); }
+      else { g.strokeStyle = "rgba(77,235,255,.18)"; for (let la = -60; la <= 60; la += 30) { g.beginPath(); for (let lo = -180; lo <= 180; lo += 5) { const q = proj(la, lo); if (q.c > 0) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); } g.stroke(); } }
+      mp.places.forEach(p => { const q = proj(p.lat, p.lon); if (q.c > 0.05) spots.push({ p, x: q.x, y: q.y, a: Math.min(1, q.c * 1.6) }); });
+    } else {
+      const sx = W / (IN_BOX.lon1 - IN_BOX.lon0), sy = H / (IN_BOX.lat1 - IN_BOX.lat0);
+      const px = lon => (lon - IN_BOX.lon0) * sx, py = lat => (IN_BOX.lat1 - lat) * sy;
+      g.strokeStyle = "rgba(77,235,255,.07)"; g.lineWidth = 1;
+      for (let lo = 70; lo <= 100; lo += 5) { g.beginPath(); g.moveTo(px(lo), 0); g.lineTo(px(lo), H); g.stroke(); }
+      for (let la = 10; la <= 35; la += 5) { g.beginPath(); g.moveTo(0, py(la)); g.lineTo(W, py(la)); g.stroke(); }
+      const dots = mp.masks.india, sz = Math.max(1.6, sx * 0.36);
+      if (dots) { g.fillStyle = "rgba(77,235,255,.5)"; for (const d of dots) g.fillRect(px(d[1]) - sz / 2, py(d[0]) - sz / 2, sz, sz); }
+      mp.places.forEach(p => { if (p.lon >= IN_BOX.lon0 && p.lon <= IN_BOX.lon1 && p.lat >= IN_BOX.lat0 && p.lat <= IN_BOX.lat1) spots.push({ p, x: px(p.lon), y: py(p.lat), a: 1 }); });
+    }
+    const pulse = REDUCED ? 0.5 : (Math.sin(t / 320) + 1) / 2;
+    spots.forEach(s => {
+      const r = 3 + Math.min(9, Math.sqrt(s.p.n) * 2.2); s.r = r;
+      const gl = g.createRadialGradient(s.x, s.y, 0, s.x, s.y, r * 3.2);
+      gl.addColorStop(0, "rgba(255,150,40," + (0.85 * s.a).toFixed(2) + ")"); gl.addColorStop(1, "rgba(255,122,26,0)");
+      g.fillStyle = gl; g.beginPath(); g.arc(s.x, s.y, r * 3.2, 0, 7); g.fill();
+      g.fillStyle = "rgba(255,240,220," + s.a.toFixed(2) + ")"; g.beginPath(); g.arc(s.x, s.y, Math.max(1.6, r * 0.45), 0, 7); g.fill();
+      if (s.p.live) { g.strokeStyle = "rgba(77,235,255," + ((1 - pulse) * s.a).toFixed(2) + ")"; g.lineWidth = 1.5; g.beginPath(); g.arc(s.x, s.y, r + 4 + pulse * 12, 0, 7); g.stroke(); }
+    });
+    // hover tooltip
+    const tip = $("#map-tip"); let hit = null;
+    if (mp.hoverXY) for (const s of spots) { if (Math.hypot(s.x - mp.hoverXY.x, s.y - mp.hoverXY.y) <= s.r + 8) { hit = s; break; } }
+    if (hit) { tip.style.display = "block"; tip.textContent = (hit.p.city || "Unknown city") + (hit.p.region ? ", " + hit.p.region : "") + (hit.p.country ? " · " + hit.p.country : "") + "  —  " + hit.p.n + (hit.p.n === 1 ? " listener" : " listeners") + (hit.p.live ? ", " + hit.p.live + " live" : ""); tip.style.left = Math.min(W - tip.offsetWidth - 4, hit.x + 14) + "px"; tip.style.top = Math.max(4, hit.y - 34) + "px"; }
+    else tip.style.display = "none";
+  }
+  function mapFrame(t){
+    if (!mp.running) return;
+    if (mp.mode === "world" && !mp.drag && !mp.hoverXY && !REDUCED) mp.lon += 0.06;
+    try { drawMap(t); } catch(e){}
+    mp.raf = requestAnimationFrame(mapFrame);
+  }
+  function startMap(){ mp.running = true; cancelAnimationFrame(mp.raf); loadMap().then(() => { if (mp.running) mp.raf = requestAnimationFrame(mapFrame); }); }
+  function stopMap(){ mp.running = false; cancelAnimationFrame(mp.raf); }
+  async function setMapMode(m){
+    mp.mode = m; $("#map-world").classList.toggle("on", m === "world"); $("#map-india").classList.toggle("on", m === "india");
+    try { await buildMask(m); } catch(e){}
+  }
+  $("#map-world").addEventListener("click", () => setMapMode("world"));
+  $("#map-india").addEventListener("click", () => setMapMode("india"));
+  $("#map-refresh").addEventListener("click", () => { mp.masks = mp.masks; loadMap(); });
+  (function(){
+    const cv = $("#map-canvas");
+    const xy = e => { const b = cv.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
+    cv.addEventListener("pointerdown", e => { if (mp.mode !== "world") return; mp.drag = xy(e); cv.setPointerCapture(e.pointerId); cv.classList.add("drag"); });
+    cv.addEventListener("pointermove", e => {
+      const p = xy(e); mp.hoverXY = p;
+      if (mp.drag) { mp.lon -= (p.x - mp.drag.x) * 0.4; mp.lat = Math.max(-70, Math.min(70, mp.lat + (p.y - mp.drag.y) * 0.3)); mp.drag = p; }
+    });
+    const end = () => { mp.drag = null; cv.classList.remove("drag"); };
+    cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+    cv.addEventListener("pointerleave", () => { mp.hoverXY = null; end(); });
+  })();
+
   /* ================= terminal (read-only) ================= */
   const tmOut = $("#tm-out"), tmIn = $("#tm-input");
   const tmHist = []; let tmPos = 0, tmBusy = false;
-  const COMMANDS = ["help","clear","whoami","tracks","find","likes","plays","listeners","health","licence","export","logout"];
+  const COMMANDS = ["help","clear","whoami","tracks","find","likes","plays","listeners","cities","health","licence","export","logout"];
   function termFocus(){ setTimeout(() => tmIn.focus(), 30); }
   function tmPrint(text, cls){
     const d = document.createElement("div"); if (cls) d.className = cls; tmOut.appendChild(d);
@@ -1225,7 +1380,7 @@
     if (!cmd) return;
     switch (cmd) {
       case "help":
-        tmPrint(["help                 this list","clear                clear the screen","whoami               who is signed in","tracks [slow|cool|hype]   list tracks","find <text>          search title / artist","likes                top 10 by likes","plays                top 10 by plays","listeners            audience summary (hashed IP only)","health               check every file plays","licence missing      tracks with no licence","export tracks|credits|licences|listeners   download a file","logout               sign out"].join("\n"), "dim"); break;
+        tmPrint(["help                 this list","clear                clear the screen","whoami               who is signed in","tracks [slow|cool|hype]   list tracks","find <text>          search title / artist","likes                top 10 by likes","plays                top 10 by plays","listeners            audience summary (hashed IP only)","cities               top 10 places listeners are in","health               check every file plays","licence missing      tracks with no licence","export tracks|credits|licences|listeners   download a file","logout               sign out"].join("\n"), "dim"); break;
       case "clear": tmOut.textContent = ""; break;
       case "whoami": tmPrint(session && session.user ? idOf(session.user.email) : "not signed in"); break;
       case "tracks": case "find": {
@@ -1250,6 +1405,13 @@
         const top = key => { const m = {}; data.forEach(r => { const v = (key === "country" ? ctryOf(r) : r[key]) || "unknown"; m[v] = (m[v] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0] + " " + e[1]).join(", "); };
         ["country", "device_type", "os", "browser"].forEach(k => tmPrint(padR(k, 12) + top(k)));
         break; }
+      case "cities": {
+        const { data, error } = await fetchAll("listener_sessions", "*");
+        if (error) { tmPrint("error: " + error.message, "err"); break; }
+        const m = {}; data.forEach(r => { if (r.lat == null) return; const k = (r.city || "unknown") + ", " + (r.country || "?"); m[k] = (m[k] || 0) + 1; });
+        const top = Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        top.forEach(([k, n], i) => tmPrint(padL(i + 1, 2) + ". " + padR(k, 34) + padL(n, 5)));
+        tmPrint(top.length ? "located " + data.filter(r => r.lat != null).length + " of " + data.length + " listeners" : "no locations yet (run supabase-geo.sql and deploy the new hello function)", "dim"); break; }
       case "health": {
         tmPrint("checking files, this can take a minute…", "dim");
         await runHealth();
