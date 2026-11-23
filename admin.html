@@ -416,6 +416,30 @@
   .mapplaces .pl i { font-style: normal; color: var(--danger); }
   @media (prefers-reduced-motion: reduce) { .cur, .card.live b::before, .menu button, .view.on, .view.on::before, #statbar span:first-child::before { animation: none; } .view.on::before { display: none; } }
   @media (max-width: 560px) { h1 { font-size: 1.1rem; letter-spacing: .3em; } .menu button { padding: .55rem .6rem; } }
+
+  /* ---- two modes: menu / terminal ---- */
+  .modesw { display: inline-flex; border: 1px solid rgba(77,235,255,.4); border-radius: 999px; overflow: hidden; margin: 0 .6rem 0 auto; }
+  .modesw button { background: transparent; border: 0; color: var(--muted); font: inherit; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; padding: .4rem .9rem; cursor: pointer; }
+  .modesw button:hover { color: var(--ink); }
+  .modesw button.on { color: #00131a; background: #4DEBFF; font-weight: 700; text-shadow: none; box-shadow: 0 0 14px rgba(77,235,255,.55); }
+  header.bar { gap: .4rem; }
+  #admin.mode-terminal #menu, #admin.mode-terminal .view:not(#v-terminal) { display: none !important; }
+  #admin.mode-terminal #v-terminal { display: block; }
+  #admin.mode-terminal #v-terminal .note { margin-bottom: .6rem; }
+  #admin.mode-terminal .termwin2 { min-height: calc(100vh - 210px); display: flex; flex-direction: column; }
+  #admin.mode-terminal #tm-out { flex: 1; max-height: none; min-height: 0; }
+  .svcs { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.2rem; }
+  .svc { display: inline-flex; align-items: center; gap: .5rem; padding: .45rem .8rem; border: 1px solid var(--line); border-radius: 999px; font-size: .78rem; color: var(--muted); background: var(--panel); }
+  .svc i { width: .55rem; height: .55rem; border-radius: 50%; background: var(--muted); }
+  .svc.ok { color: var(--ink); border-color: rgba(77,235,255,.45); } .svc.ok i { background: #4DEBFF; box-shadow: 0 0 8px #4DEBFF; }
+  .svc.bad { color: var(--ink); border-color: var(--danger); } .svc.bad i { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+  .svc.wait i { animation: svcp 1s ease-in-out infinite; }
+  @keyframes svcp { 50% { opacity: .25; } }
+  .attn { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .55rem 0; border-bottom: 1px solid var(--line); font-size: .85rem; }
+  .attn:last-child { border-bottom: 0; }
+  #track-tools { align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: .6rem; }
+  #track-tools select { background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: .35rem .5rem; font: inherit; font-size: .8rem; }
+  @media (prefers-reduced-motion: reduce) { .svc.wait i { animation: none; } }
 </style>
 </head>
 <body class="login-mode">
@@ -442,6 +466,7 @@
     <footer id="statbar" aria-hidden="true"><span>GRID ONLINE</span><span>USER <b id="sb-user">—</b></span><span>SESSION <b id="sb-time">00:00:00</b></span><span class="sb-msg" id="sb-msg"></span></footer>
     <header class="bar">
       <span class="sub" style="margin:0;">&gt; SESSION ACTIVE // USER <b id="who">—</b></span>
+      <div class="modesw" id="modesw" role="group" aria-label="Admin mode"><button type="button" class="on" data-mode="menu" aria-pressed="true">Menu</button><button type="button" data-mode="terminal" aria-pressed="false">&gt;_ Terminal</button></div>
       <button id="logout" type="button">Disconnect</button>
     </header>
 
@@ -449,13 +474,9 @@
     <nav class="menu" id="menu" aria-label="Admin sections">
       <button type="button" class="on" data-view="overview">Overview</button>
       <button type="button" data-view="tracks">Tracks</button>
-      <button type="button" data-view="likes">Likes</button>
       <button type="button" data-view="listeners">Listeners</button>
-      <button type="button" data-view="map">Fleet map</button>
       <button type="button" data-view="health">Health</button>
       <button type="button" data-view="downloader">Downloader</button>
-      <button type="button" data-view="terminal">&gt;_ Terminal</button>
-      <button type="button" data-view="tools">Tools</button>
     </nav>
 
     <section class="view on" id="v-overview">
@@ -494,6 +515,11 @@
     <div id="uploads"></div>
 
     <input id="track-search" class="searchbox" type="search" placeholder="Search every lane by song, artist, licence or lane…" aria-label="Search tracks">
+    <div class="toolbar" id="track-tools">
+      <label class="selall">Sort <select id="track-sort" aria-label="Sort tracks"><option value="order">Play order</option><option value="liked">Most liked</option><option value="disliked">Most disliked</option><option value="played">Most played</option><option value="title">Title A–Z</option><option value="newest">Newest first</option></select></label>
+      <label class="selall"><input type="checkbox" id="all-lanes"> Show all lanes</label>
+      <span class="note" style="margin:0">Shortcuts: <b>/</b> search · <b>g</b> then <b>o t l h d</b> to jump · <b>Ctrl+`</b> terminal mode</span>
+    </div>
     <div class="lane-head">
       <h2 id="lane-title">Slow — tracks</h2>
     </div>
@@ -513,26 +539,11 @@
     <div id="tracklist"></div>
     </section>
 
-    <section class="view" id="v-likes">
-      <p class="note">Likes and dislikes from listeners, one vote per browser per song. Songs nobody has voted on are listed last.</p>
-      <div class="toolbar">
-        <select id="likes-lane" aria-label="Lane"><option value="all">All lanes</option><option value="slow">Slow</option><option value="cool">Cool</option><option value="hype">Hype</option></select>
-        <select id="likes-sort" aria-label="Sort"><option value="top">Most liked first</option><option value="bottom">Least liked first</option><option value="votes">Most votes first</option><option value="plays">Most played first</option></select>
-        <button class="btn" id="likes-refresh" type="button">↻ Refresh</button>
-      </div>
-      <div class="tablewrap"><table class="data"><thead><tr><th>Song</th><th>Lane</th><th class="num">Up</th><th class="num">Down</th><th class="num">Net</th><th class="num">▶ Plays</th></tr></thead><tbody id="likes-body"></tbody></table></div>
-    </section>
-
     <section class="view" id="v-listeners">
       <p class="note">Anonymous stats: device type, system, browser, screen size, time zone, country and activity. The IP address itself is never stored, only a one-way scrambled code used to count unique networks (needs the "hello" function). No name or email. "Live" means active in the last 2 minutes.</p>
       <div class="toolbar"><button class="btn" id="listeners-refresh" type="button">↻ Refresh</button></div>
       <div class="cards" id="listener-cards"></div>
-      <div class="grid2" id="listener-breakdowns"></div>
-      <div class="lane-head"><h2>Recent listeners</h2></div>
-      <div class="tablewrap"><table class="data"><thead><tr><th>Last seen</th><th>Place</th><th>Device</th><th>System</th><th>Browser</th><th>App</th><th>Screen</th><th>Lane</th><th class="num">Plays</th><th class="num">Visits</th></tr></thead><tbody id="listeners-body"></tbody></table></div>
-    </section>
-
-    <section class="view" id="v-map">
+      <div class="lane-head"><h2>Fleet map</h2></div>
       <p class="note">Where listeners are, from their IP address at their last visit. City level and approximate. The IP itself is never stored, only the place it maps to (needs <b>supabase-geo.sql</b> and the updated <b>hello</b> function).</p>
       <div class="toolbar"><button class="btn on" id="map-world" type="button">World</button><button class="btn" id="map-india" type="button">India</button><button class="btn" id="map-refresh" type="button">↻ Refresh</button><span class="note" id="map-status" style="margin:0"></span></div>
       <div class="cards" id="map-cards"></div>
@@ -540,15 +551,27 @@
         <div class="mapwrap"><canvas id="map-canvas" aria-label="Map of listener locations"></canvas><div id="map-tip"></div></div>
         <div><div class="lane-head"><h3>Top places</h3></div><div id="map-places" class="mapplaces"></div></div>
       </div>
+      <div class="lane-head"><h2>Breakdown</h2></div>
+      <div class="grid2" id="listener-breakdowns"></div>
+      <div class="lane-head"><h2>Recent listeners</h2></div>
+      <div class="tablewrap"><table class="data"><thead><tr><th>Last seen</th><th>Place</th><th>Device</th><th>System</th><th>Browser</th><th>App</th><th>Screen</th><th>Lane</th><th class="num">Plays</th><th class="num">Visits</th></tr></thead><tbody id="listeners-body"></tbody></table></div>
     </section>
 
     <section class="view" id="v-health">
+      <div class="lane-head"><h2>Services</h2><button class="btn" id="svc-run" type="button">↻ Recheck</button></div>
+      <div class="svcs" id="svc-list"><span class="svc wait"><i></i>Checking…</span></div>
       <p class="note">Checks every song file: is it there, is it big enough, and does a browser actually load it as audio. It also finds leftover files that no song uses (they waste storage). Run it before you announce anything. It reads your files only; nothing changes until you click a delete button.</p>
       <div class="toolbar"><button class="btn" id="health-run" type="button">Run health check</button><label class="selall" style="font-size:.78rem;color:var(--muted)"><input type="checkbox" id="health-problems" checked> Show problems only</label><span id="health-when" class="note" style="margin:0"></span></div>
       <div class="hbar"><i id="health-prog"></i></div>
       <div class="cards" id="health-cards"></div>
       <div class="tablewrap"><table class="data"><thead><tr><th>Song</th><th>Lane</th><th>Result</th><th class="num">Length</th><th class="num">Size</th><th></th></tr></thead><tbody id="health-body"><tr><td colspan="6" class="empty-lane">Not run yet.</td></tr></tbody></table></div>
       <div id="orphans"></div>
+      <div class="lane-head" style="margin-top:1.6rem"><h2>Maintenance &amp; exports</h2></div>
+      <div class="toolrow"><p><strong>Export tracks (CSV)</strong>Every track with lane, order, likes and dislikes. Opens in Excel or Sheets.</p><button class="btn" id="export-tracks" type="button">Download</button></div>
+      <div class="toolrow"><p><strong>Credits list (text)</strong>Ready-to-paste credit lines for every song that needs one (CC BY, written permission). Use it for the credits page.</p><button class="btn" id="export-credits" type="button">Download</button></div>
+      <div class="toolrow"><p><strong>Licence report (CSV)</strong>Every song with its licence, proof link and check date. Keep a copy as your paper trail.</p><button class="btn" id="export-licences" type="button">Download</button></div>
+      <div class="toolrow"><p><strong>Export listeners (CSV)</strong>The anonymous listener rows shown on the Listeners page.</p><button class="btn" id="export-listeners" type="button">Download</button></div>
+      <div class="toolrow"><p><strong>Clear old listener stats</strong>Deletes listener rows not seen for 30 days. Good housekeeping for privacy.</p><button class="btn danger" id="clear-old" type="button">Clear</button></div>
     </section>
 
     <section class="view" id="v-downloader">
@@ -572,13 +595,6 @@
       </div>
     </section>
 
-    <section class="view" id="v-tools">
-      <div class="toolrow"><p><strong>Export tracks (CSV)</strong>Every track with lane, order, likes and dislikes. Opens in Excel or Sheets.</p><button class="btn" id="export-tracks" type="button">Download</button></div>
-      <div class="toolrow"><p><strong>Credits list (text)</strong>Ready-to-paste credit lines for every song that needs one (CC BY, written permission). Use it for the credits page.</p><button class="btn" id="export-credits" type="button">Download</button></div>
-      <div class="toolrow"><p><strong>Licence report (CSV)</strong>Every song with its licence, proof link and check date. Keep a copy as your paper trail.</p><button class="btn" id="export-licences" type="button">Download</button></div>
-      <div class="toolrow"><p><strong>Export listeners (CSV)</strong>The anonymous listener rows shown on the Listeners page.</p><button class="btn" id="export-listeners" type="button">Download</button></div>
-      <div class="toolrow"><p><strong>Clear old listener stats</strong>Deletes listener rows not seen for 30 days. Good housekeeping for privacy.</p><button class="btn danger" id="clear-old" type="button">Clear</button></div>
-    </section>
   </div>
 </div>
 
@@ -906,13 +922,21 @@
 
   async function loadTracks(){
     const q = ($("#track-search").value || "").trim().toLowerCase();
-    const searching = q.length > 0;
+    const allL = $("#all-lanes").checked, sortBy = $("#track-sort").value, customSort = sortBy !== "order";
+    const searching = q.length > 0 || allL;
     let tq = supa.from("tracks").select("*");
     if (!searching) tq = tq.eq("mode", mode);
     let { data, error } = await tq.order(searching ? "mode" : "position", { ascending: true });
     if (searching && data) data = data.filter(t => [t.title, t.artist, t.license, t.mode].join(" ").toLowerCase().includes(q));
-    $("#lane-title").textContent = searching ? "Search results (" + (data ? data.length : 0) + ")" : document.querySelector(".tab.active").textContent + " — tracks";
+    $("#lane-title").textContent = q.length ? "Search results (" + (data ? data.length : 0) + ")" : allL ? "All lanes (" + (data ? data.length : 0) + ")" : document.querySelector(".tab.active").textContent + " — tracks";
     const [tally, playsMap] = await Promise.all([voteTally(), playTally()]);
+    if (data && customSort) {
+      const net = t => { const v = tally[t.id] || { up: 0, down: 0 }; return v.up - v.down; };
+      const dn = t => (tally[t.id] || { down: 0 }).down, pl = t => playsMap[t.id] || 0;
+      const cmp = { liked: (a, b) => net(b) - net(a) || pl(b) - pl(a), disliked: (a, b) => dn(b) - dn(a) || net(a) - net(b), played: (a, b) => pl(b) - pl(a) || net(b) - net(a),
+                    title: (a, b) => String(a.title).localeCompare(String(b.title)), newest: (a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")) }[sortBy];
+      data = data.slice().sort(cmp);
+    }
     const list = $("#tracklist");
     list.innerHTML = "";
     currentTracks = [];
@@ -932,8 +956,8 @@
         '<div class="meta"><div class="ttitle"></div><div class="artist"></div></div>' +
         '<button class="pv" title="Preview">▶</button>' +
         '<button class="intro-flag' + (t.intro ? ' on' : '') + '" title="Toggle intro track">★</button>' +
-        '<button class="up" title="Move up" ' + (searching || i === 0 ? "disabled" : "") + '>↑</button>' +
-        '<button class="down" title="Move down" ' + (searching || i === data.length - 1 ? "disabled" : "") + '>↓</button>' +
+        '<button class="up" title="Move up" ' + (searching || customSort || i === 0 ? "disabled" : "") + '>↑</button>' +
+        '<button class="down" title="Move down" ' + (searching || customSort || i === data.length - 1 ? "disabled" : "") + '>↓</button>' +
         '<button class="lic' + (t.license ? ' has' : '') + '" title="Licence and credit">§</button>' +
         '<button class="rename" title="Rename">✎</button>' +
         '<button class="move" title="Move to another lane">⇄</button>' +
@@ -1032,13 +1056,13 @@
         selectedIds.delete(t.id);
         loadTracks();
       });
-      if (!searching && i > 0) row.querySelector(".up").addEventListener("click", async () => {
+      if (!searching && !customSort && i > 0) row.querySelector(".up").addEventListener("click", async () => {
         const other = data[i-1];
         await supa.from("tracks").update({ position: other.position }).eq("id", t.id);
         await supa.from("tracks").update({ position: t.position }).eq("id", other.id);
         loadTracks();
       });
-      if (!searching && i < data.length - 1) row.querySelector(".down").addEventListener("click", async () => {
+      if (!searching && !customSort && i < data.length - 1) row.querySelector(".down").addEventListener("click", async () => {
         const other = data[i+1];
         await supa.from("tracks").update({ position: other.position }).eq("id", t.id);
         await supa.from("tracks").update({ position: t.position }).eq("id", other.id);
@@ -1053,6 +1077,8 @@
 
   /* ================= bulk actions ================= */
   $("#only-missing").addEventListener("change", loadTracks);
+  $("#track-sort").addEventListener("change", loadTracks);
+  $("#all-lanes").addEventListener("change", loadTracks);
   $("#select-all").addEventListener("change", e => {
     const checked = e.target.checked;
     if (checked) currentTracks.forEach(t => selectedIds.add(t.id));
@@ -1093,21 +1119,63 @@
   });
 
   /* ================= menu ================= */
-  const VIEWS = ["overview","tracks","likes","listeners","map","health","downloader","terminal","tools"];
+  const VIEWS = ["overview","tracks","listeners","health","downloader","terminal"];
+  let curView = "overview", adminMode = "menu";
   function showView(name){
+    if (!VIEWS.includes(name) || name === "terminal") name = "overview";
+    curView = name;
     document.querySelectorAll("#menu button").forEach(b => b.classList.toggle("on", b.dataset.view === name));
     VIEWS.forEach(v => $("#v-" + v).classList.toggle("on", v === name));
     typePrompt("> GRID/" + name.toUpperCase());
-    const view = $("#v-" + name);
-    view.querySelectorAll(TYPE_SEL).forEach(el => { delete el.dataset.typed; });
-    typeIn(view, 110);
     if (name === "overview") loadOverview();
-    if (name === "likes") loadLikes();
-    if (name === "listeners") loadListeners();
-    if (name === "map") startMap(); else stopMap();
-    if (name === "terminal") termFocus();
+    if (name === "listeners") { loadListeners(); startMap(); } else stopMap();
+    if (name === "health") checkServices();
   }
   document.querySelectorAll("#menu button").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
+
+
+  /* ================= two modes: menu / terminal ================= */
+  function setAdminMode(m){
+    adminMode = m === "terminal" ? "terminal" : "menu";
+    $("#admin").classList.toggle("mode-terminal", adminMode === "terminal");
+    document.querySelectorAll("#modesw button").forEach(b => { const on = b.dataset.mode === adminMode; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
+    try { localStorage.setItem("nightrace.admin.mode", adminMode); } catch(e){}
+    if (adminMode === "terminal") { stopMap(); typePrompt("> GRID/TERMINAL"); termFocus(); }
+    else { typePrompt("> GRID/" + curView.toUpperCase()); if (curView === "listeners") startMap(); }
+  }
+  document.querySelectorAll("#modesw button").forEach(b => b.addEventListener("click", () => setAdminMode(b.dataset.mode)));
+  let gKey = 0;
+  addEventListener("keydown", e => {
+    if (!$("#admin").classList.contains("on")) return;
+    if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === "`" || e.code === "Backquote")) { e.preventDefault(); setAdminMode(adminMode === "terminal" ? "menu" : "terminal"); return; }
+    const tg = (e.target.tagName || "").toLowerCase();
+    const typing = tg === "textarea" || tg === "select" || (tg === "input" && !["checkbox","radio","button","range"].includes(e.target.type));
+    if (typing || e.target.isContentEditable || e.ctrlKey || e.metaKey || e.altKey || adminMode === "terminal") return;
+    if (e.key === "/") { e.preventDefault(); showView("tracks"); setTimeout(() => $("#track-search").focus(), 30); return; }
+    if (gKey && Date.now() - gKey < 1200) {
+      const to = { o: "overview", t: "tracks", l: "listeners", h: "health", d: "downloader" }[e.key.toLowerCase()];
+      gKey = 0; if (to) { e.preventDefault(); showView(to); } return;
+    }
+    if (e.key === "g") gKey = Date.now();
+  });
+  setTimeout(() => { let m = "menu"; try { m = localStorage.getItem("nightrace.admin.mode") || "menu"; } catch(e){} if (m === "terminal") setAdminMode("terminal"); }, 0);
+
+  /* ================= service status (Health page) ================= */
+  async function checkServices(){
+    const box = $("#svc-list");
+    const pill = (cls, txt) => '<span class="svc ' + cls + '"><i></i>' + esc(txt) + '</span>';
+    box.innerHTML = pill("wait", "Checking…");
+    const out = [], lim = (pr, ms) => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(new Error("timed out")), ms))]);
+    try { const { error } = await lim(supa.from("tracks").select("id", { count: "exact", head: true }), 8000); out.push(error ? pill("bad", "Supabase: " + error.message) : pill("ok", "Supabase database: reachable")); }
+    catch(e) { out.push(pill("bad", "Supabase: " + e.message)); }
+    if (useR2) {
+      try { const { error } = await lim(listFiles("slow"), 8000); out.push(error ? pill("bad", "R2 files (Worker): " + error.message) : pill("ok", "R2 files (Worker): reachable")); }
+      catch(e) { out.push(pill("bad", "R2 files (Worker): " + e.message)); }
+    }
+    out.push(session ? pill("ok", "Admin login: signed in") : pill("bad", "Admin login: signed out"));
+    box.innerHTML = out.join("");
+  }
+  $("#svc-run").addEventListener("click", checkServices);
 
   /* ================= shared helpers ================= */
   const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -1161,39 +1229,11 @@
   };
 
   /* ================= likes ================= */
-  let likesRows = [];
   async function buildLikesRows(){
     const [tr, tally, pl] = await Promise.all([fetchAll("tracks", "*"), voteTally(), playTally()]);
     if (tr.error) throw tr.error;
     return tr.data.map(t => { const v = tally[t.id] || { up: 0, down: 0 }; return { ...t, up: v.up, down: v.down, net: v.up - v.down, plays: pl[t.id] || 0 }; });
   }
-  async function loadLikes(){
-    $("#likes-body").innerHTML = '<tr><td colspan="6" class="empty-lane">Loading…</td></tr>';
-    try { likesRows = await buildLikesRows(); } catch(e) { $("#likes-body").innerHTML = '<tr><td colspan="6" class="empty-lane">Couldn\'t load: ' + esc(e.message) + '</td></tr>'; return; }
-    renderLikes();
-  }
-  function renderLikes(){
-    const lane = $("#likes-lane").value, sort = $("#likes-sort").value;
-    let rows = likesRows.filter(r => lane === "all" || r.mode === lane);
-    const voted = r => r.up + r.down > 0;
-    rows.sort((a, b) => {
-      if (sort === "plays") return b.plays - a.plays || b.net - a.net;
-      if (voted(a) !== voted(b)) return voted(a) ? -1 : 1;           // unvoted songs always last
-      if (sort === "bottom") return a.net - b.net || (b.up + b.down) - (a.up + a.down);
-      if (sort === "votes") return (b.up + b.down) - (a.up + a.down) || b.net - a.net;
-      if (sort === "plays") return b.plays - a.plays || b.net - a.net;
-      return b.net - a.net || (b.up + b.down) - (a.up + a.down);
-    });
-    $("#likes-body").innerHTML = rows.length ? rows.map(r =>
-      '<tr><td>' + esc(r.title) + '<div class="artist" style="color:var(--muted);font-size:.72rem">' + esc(r.artist || "—") + '</div></td>' +
-      '<td>' + esc(r.mode) + '</td><td class="num">' + r.up + '</td><td class="num">' + r.down + '</td>' +
-      '<td class="num" style="color:' + (r.net > 0 ? "var(--accent)" : r.net < 0 ? "var(--danger)" : "var(--muted)") + '">' + (r.net > 0 ? "+" : "") + r.net + '</td><td class="num">' + r.plays + '</td></tr>'
-    ).join("") : '<tr><td colspan="6" class="empty-lane">No songs yet.</td></tr>';
-  }
-  $("#likes-lane").addEventListener("change", renderLikes);
-  $("#likes-sort").addEventListener("change", renderLikes);
-  $("#likes-refresh").addEventListener("click", loadLikes);
-
   /* ================= listeners ================= */
   let listenerRows = [];
   function bars(title, values){
@@ -1365,7 +1405,7 @@
   /* ================= terminal (read-only) ================= */
   const tmOut = $("#tm-out"), tmIn = $("#tm-input");
   const tmHist = []; let tmPos = 0, tmBusy = false;
-  const COMMANDS = ["help","clear","whoami","tracks","find","likes","plays","listeners","cities","health","licence","export","logout"];
+  const COMMANDS = ["help","menu","clear","whoami","tracks","find","likes","plays","listeners","cities","health","licence","export","logout"];
   function termFocus(){ setTimeout(() => tmIn.focus(), 30); }
   function tmPrint(text, cls){
     const d = document.createElement("div"); if (cls) d.className = cls; tmOut.appendChild(d);
@@ -1380,7 +1420,8 @@
     if (!cmd) return;
     switch (cmd) {
       case "help":
-        tmPrint(["help                 this list","clear                clear the screen","whoami               who is signed in","tracks [slow|cool|hype]   list tracks","find <text>          search title / artist","likes                top 10 by likes","plays                top 10 by plays","listeners            audience summary (hashed IP only)","cities               top 10 places listeners are in","health               check every file plays","licence missing      tracks with no licence","export tracks|credits|licences|listeners   download a file","logout               sign out"].join("\n"), "dim"); break;
+        tmPrint(["help                 this list","menu                 back to menu mode (or press Ctrl+`)","clear                clear the screen","whoami               who is signed in","tracks [slow|cool|hype]   list tracks","find <text>          search title / artist","likes                top 10 by likes","plays                top 10 by plays","listeners            audience summary (hashed IP only)","cities               top 10 places listeners are in","health               check every file plays","licence missing      tracks with no licence","export tracks|credits|licences|listeners   download a file","logout               sign out"].join("\n"), "dim"); break;
+      case "menu": case "exit": setAdminMode("menu"); break;
       case "clear": tmOut.textContent = ""; break;
       case "whoami": tmPrint(session && session.user ? idOf(session.user.email) : "not signed in"); break;
       case "tracks": case "find": {
@@ -1693,12 +1734,18 @@
       const list = (title, arr, fmt) => '<div class="panel"><h3>' + title + '</h3>' + (arr.length ? arr.map(r =>
         '<div class="bar-row" style="grid-template-columns:1fr auto"><span class="lbl" title="' + esc(r.title) + '">' + esc(r.title) + ' <span style="color:var(--muted)">· ' + esc(r.artist || "—") + '</span></span><span class="n">' + fmt(r) + '</span></div>'
       ).join("") : '<div class="empty-lane">No votes yet</div>') + '</div>';
+      const miss = rows.filter(r => !r.license).length;
       $("#overview-panels").innerHTML =
+        '<div class="panel" style="grid-column:1/-1"><h3>Needs attention</h3>' +
+        (miss ? '<div class="attn"><span>' + miss + ' song' + (miss === 1 ? "" : "s") + ' without a licence</span><button class="btn" id="attn-lic" type="button">Show them</button></div>' : '<div class="attn"><span>Every song has a licence.</span></div>') +
+        '<div class="attn"><span>Check that every file plays before you announce anything</span><button class="btn" id="attn-health" type="button">Open Health</button></div></div>' +
         bars("Songs per lane", rows.map(r => r.mode)) +
         list("Most liked", top, r => (r.net > 0 ? "+" : "") + r.net) +
         list("Most played", rows.filter(r => r.plays > 0).sort((a, b) => b.plays - a.plays).slice(0, 5), r => "▶ " + r.plays) +
         list("Most disliked", worst, r => "▲" + r.up + " ▼" + r.down) +
         bars("Country", sd.map(ctryOf)) + bars("Device", sd.map(r => r.device_type));
+      const al = $("#attn-lic"); if (al) al.addEventListener("click", () => { $("#only-missing").checked = true; $("#all-lanes").checked = true; showView("tracks"); loadTracks(); });
+      $("#attn-health").addEventListener("click", () => showView("health"));
     } catch(e) { $("#overview-cards").innerHTML = '<div class="empty-lane">Couldn\'t load: ' + esc(e.message) + '</div>'; }
   }
   $("#overview-refresh").addEventListener("click", loadOverview);
