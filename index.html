@@ -865,6 +865,7 @@
   <div class="pre-keys" id="fav-presets" role="group" aria-label="Presets"></div>
   <div class="scope-row" role="group" aria-label="What to list">
     <button type="button" id="scope-saved" class="scope-key on" aria-pressed="true">♡ Saved</button>
+    <button type="button" id="scope-recent" class="scope-key" aria-pressed="false">Recent</button>
     <button type="button" id="scope-all" class="scope-key" aria-pressed="false">All songs</button>
   </div>
   <input id="fav-search" type="search" placeholder="Find: song, artist or lane…" aria-label="Search songs" autocomplete="off">
@@ -1134,7 +1135,7 @@
   /* ---- persisted settings (per browser, best-effort) ---- */
   const STORE = "nightrace.settings.v1";
   function save(){
-    try { localStorage.setItem(STORE, JSON.stringify({ mode, shuffle, volume: masterVolume, rainLevel, eq, taste, favs })); }
+    try { localStorage.setItem(STORE, JSON.stringify({ mode, shuffle, volume: masterVolume, rainLevel, eq, taste, favs, recent })); }
     catch(e){ /* storage unavailable — settings just won't persist */ }
   }
   function restore(){
@@ -1150,6 +1151,10 @@
       }
       if (Array.isArray(s.favs)) {
         favs = s.favs.filter(f => f && typeof f.src === "string" && typeof f.title === "string").slice(0, 200)
+          .map(f => ({ src: f.src, id: f.id || null, title: f.title.slice(0, 200), artist: String(f.artist || "").slice(0, 200), mode: ["slow","cool","hype"].includes(f.mode) ? f.mode : "slow" }));
+      }
+      if (Array.isArray(s.recent)) {
+        recent = s.recent.filter(f => f && typeof f.src === "string" && typeof f.title === "string").slice(0, 30)
           .map(f => ({ src: f.src, id: f.id || null, title: f.title.slice(0, 200), artist: String(f.artist || "").slice(0, 200), mode: ["slow","cool","hype"].includes(f.mode) ? f.mode : "slow" }));
       }
       if (typeof s.rainLevel === "number") rainLevel = Math.min(3, Math.max(0, s.rainLevel));
@@ -2059,7 +2064,7 @@
   setInterval(() => { if (started && decks[activeIdx] && !decks[activeIdx].paused) pingSession(); }, 60000);
 
   /* ---- Favourites: a personal radio dial, saved on this device ---- */
-  let favs = [], favScope = "saved";
+  let favs = [], favScope = "saved", recent = [], recentLogged = null;
   const favsEl = document.getElementById("favs");
   const laneOf = src => ["slow","cool","hype"].find(m => TRACKS[m].some(q => q.src === src)) || null;
   const freqOf = src => { let h = 2166136261; for (let i = 0; i < src.length; i++) { h ^= src.charCodeAt(i); h = Math.imul(h, 16777619); } return 88 + ((h >>> 0) % 200) / 10; };   // 88.0 - 107.9, stable per song
@@ -2093,6 +2098,12 @@
     }
     if (decks[activeIdx].paused) playPause();
   }
+  function noteHeard(t){
+    const e = { src: t.src, id: t.id || null, title: t.title, artist: (t.artist && t.artist !== "—") ? t.artist : "", mode: laneOf(t.src) || mode };
+    recent = [e].concat(recent.filter(r => r.src !== t.src)).slice(0, 30);
+    save();
+    if (openSheet === favsEl && favScope === "recent") renderFavs();
+  }
   function seekFav(dir){
     const live = favs.filter(f => laneOf(f.src)).sort((a, b) => freqOf(a.src) - freqOf(b.src));
     if (!live.length) return;
@@ -2120,19 +2131,21 @@
       if (f) { b.title = f.title; b.setAttribute("aria-label", "Preset " + (i + 1) + ": " + f.title); b.addEventListener("click", () => playFav(f)); }
       pre.appendChild(b);
     }
-    const all = favScope === "all";
+    const all = favScope !== "saved", isRecent = favScope === "recent";
     let rows;
-    if (all) {
+    if (isRecent) {
+      rows = recent.filter(f => !q || (f.title + " " + f.artist + " " + f.mode).toLowerCase().includes(q));
+    } else if (all) {
       rows = [];
       for (const m of ["slow","cool","hype"]) for (const t of TRACKS[m]) rows.push({ src: t.src, id: t.id || null, title: t.title, artist: (t.artist && t.artist !== "—") ? t.artist : "", mode: m });
       rows = rows.filter(f => !q || (f.title + " " + f.artist + " " + f.mode).toLowerCase().includes(q));
       rows.sort((a, b) => a.title.localeCompare(b.title));
     } else rows = favs.filter(f => !q || (f.title + " " + f.artist + " " + f.mode).toLowerCase().includes(q)).sort((a, b) => freqOf(a.src) - freqOf(b.src));
-    const total = rows.length; if (all) rows = rows.slice(0, 80);
+    const total = rows.length; if (all && !isRecent) rows = rows.slice(0, 80);
     const box = $("#fav-list"); box.innerHTML = "";
     if (!rows.length) {
       const e = document.createElement("div"); e.className = "stn-empty";
-      e.textContent = all ? "No song matches that." : (favs.length ? "No station matches that." : "Nothing here yet. Tap the ♡ on a song to add your first station, or switch to All songs.");
+      e.textContent = isRecent ? (recent.length ? "No song matches that." : "Nothing yet. Songs you listen to will show up here, newest first.") : all ? "No song matches that." : (favs.length ? "No station matches that." : "Nothing here yet. Tap the ♡ on a song to add your first station, or switch to All songs.");
       box.appendChild(e); return;
     }
     rows.forEach(f => {
@@ -2162,7 +2175,7 @@
       }
       row.append(main, x); box.appendChild(row);
     });
-    if (all && total > rows.length) { const e = document.createElement("div"); e.className = "stn-empty"; e.textContent = "Showing " + rows.length + " of " + total + ". Type to narrow it down."; box.appendChild(e); }
+    if (all && !isRecent && total > rows.length) { const e = document.createElement("div"); e.className = "stn-empty"; e.textContent = "Showing " + rows.length + " of " + total + ". Type to narrow it down."; box.appendChild(e); }
   }
   let shownTrack = null;
   function paintRate(t){
@@ -2555,6 +2568,10 @@
         $("#t-now").textContent = fmt(el.currentTime);
         $("#bar").setAttribute("aria-valuenow", Math.round(p*100));
         rememberRide(el);
+        // Recently played: remember a song once it has really been heard (10 s, or half of a very short one)
+        if (shownTrack && recentLogged !== shownTrack.src && el.duration && el.currentTime >= Math.min(10, el.duration / 2)) {
+          recentLogged = shownTrack.src; noteHeard(shownTrack);
+        }
         // count a play once a song has really been heard (20 s, or half of a very short one)
         if (shownTrack && shownTrack.id && playLogged !== shownTrack.src && el.duration &&
             el.currentTime >= Math.min(20, el.duration / 2)) {
@@ -2700,8 +2717,9 @@
   document.getElementById("fav-next").addEventListener("click", () => seekFav(1));
   $("#fav").addEventListener("click", toggleFav);
   $("#fav-search").addEventListener("input", renderFavs);
-  function setScope(v){ favScope = v; $("#scope-saved").classList.toggle("on", v === "saved"); $("#scope-all").classList.toggle("on", v === "all"); $("#scope-saved").setAttribute("aria-pressed", String(v === "saved")); $("#scope-all").setAttribute("aria-pressed", String(v === "all")); renderFavs(); }
+  function setScope(v){ favScope = v; for (const k of ["saved","recent","all"]) { const b = $("#scope-" + k); b.classList.toggle("on", v === k); b.setAttribute("aria-pressed", String(v === k)); } renderFavs(); }
   $("#scope-saved").addEventListener("click", () => setScope("saved"));
+  $("#scope-recent").addEventListener("click", () => setScope("recent"));
   $("#scope-all").addEventListener("click", () => setScope("all"));
   document.getElementById("tuning-open").addEventListener("click", () => setSheet(document.getElementById("tuning")));
   document.getElementById("keys-open").addEventListener("click", () => setSheet(document.getElementById("keys")));
