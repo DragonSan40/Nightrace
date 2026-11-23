@@ -446,6 +446,47 @@
   .stn-x.heart { font-size: .95rem; }
   @media (max-width: 480px) { .dial-knob { width: 42px; height: 42px; } .dial-knob::before { inset: 5px; } .dial-knob::after { top: 7px; height: 8px; } #fav-freq { font-size: 1.8rem; } .pre-key { width: 42px; } .unit { gap: .5rem; } }
 
+
+  /* ---- First-visit briefing: a short HUD readout, shown once per device ---- */
+  #brief { position: fixed; inset: 0; z-index: 60; display: grid; align-items: end; justify-items: center; padding: 0 16px max(18px, env(safe-area-inset-bottom));
+    background: linear-gradient(to top, rgba(4,6,10,.88) 0%, rgba(4,6,10,.55) 55%, rgba(4,6,10,.15) 100%);
+    opacity: 0; visibility: hidden; transition: opacity .6s ease, visibility .6s; }
+  #brief.on { opacity: 1; visibility: visible; }
+  #brief .panel { position: relative; width: min(460px, 100%); margin-bottom: 4vh; padding: 20px 20px 16px;
+    background: linear-gradient(180deg, rgba(16,21,31,.92), rgba(10,13,20,.94)); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.02) inset, 0 0 40px var(--accent-dim);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transform: translateY(18px); transition: transform .7s cubic-bezier(.2,.8,.2,1); }
+  #brief.on .panel { transform: none; }
+  #brief .panel::before, #brief .panel::after { content: ""; position: absolute; width: 16px; height: 16px; border: 2px solid var(--accent); opacity: .9; }
+  #brief .panel::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-top-left-radius: 14px; }
+  #brief .panel::after { right: -1px; bottom: -1px; border-left: 0; border-top: 0; border-bottom-right-radius: 14px; }
+  #brief .b-top { display: flex; justify-content: space-between; align-items: baseline; font-size: .62rem; letter-spacing: .28em; color: var(--muted); text-transform: uppercase; }
+  #brief .b-top b { color: var(--accent); font-weight: 600; }
+  #brief h2 { margin: 6px 0 14px; font-size: 1.25rem; letter-spacing: .14em; font-weight: 600; text-transform: uppercase; color: var(--ink); }
+  #brief .scan { height: 1px; margin: 0 0 6px; background: linear-gradient(90deg, var(--accent), transparent); transform-origin: left; transform: scaleX(0); }
+  #brief.on .scan { transform: scaleX(1); transition: transform 1s ease .25s; }
+  #brief ol { list-style: none; margin: 0; padding: 0; }
+  #brief li { display: grid; grid-template-columns: 34px 1fr; gap: 2px 10px; padding: 11px 0; border-bottom: 1px solid rgba(30,38,54,.8); opacity: 0; transform: translateX(-10px); }
+  #brief li:last-child { border-bottom: 0; }
+  #brief.on li { opacity: 1; transform: none; transition: opacity .5s ease, transform .5s ease; }
+  #brief.on li:nth-child(1) { transition-delay: .55s; } #brief.on li:nth-child(2) { transition-delay: .85s; }
+  #brief.on li:nth-child(3) { transition-delay: 1.15s; } #brief.on li:nth-child(4) { transition-delay: 1.45s; }
+  #brief .n { grid-row: 1 / span 2; font-size: .72rem; letter-spacing: .1em; color: var(--accent); padding-top: 3px; }
+  #brief li b { font-size: .78rem; letter-spacing: .2em; text-transform: uppercase; color: var(--ink); font-weight: 600; }
+  #brief li span.d { font-size: .82rem; line-height: 1.45; color: var(--muted-bright); }
+  #brief kbd { font: inherit; font-size: .72rem; padding: 0 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); }
+  #brief .b-go { display: block; width: 100%; margin-top: 14px; padding: 13px 16px; font: inherit; font-size: .8rem; letter-spacing: .3em; text-transform: uppercase; font-weight: 600;
+    color: var(--asphalt); background: var(--accent); border: 0; border-radius: 9px; cursor: pointer; box-shadow: 0 10px 30px var(--accent-dim); opacity: 0; transition: opacity .5s ease 1.9s, transform .12s ease; }
+  #brief.on .b-go { opacity: 1; }
+  #brief .b-go:active { transform: translateY(2px) scale(.99); }
+  #brief .b-go:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  #brief .b-skip { display: block; margin: 10px auto 0; background: none; border: 0; font: inherit; font-size: .64rem; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); cursor: pointer; }
+  #brief .b-skip:hover { color: var(--ink); }
+  @media (prefers-reduced-motion: reduce) {
+    #brief, #brief .panel, #brief .scan, #brief li, #brief .b-go { transition: none !important; transform: none !important; }
+    #brief .scan { transform: none; } #brief li, #brief .b-go { opacity: 1; }
+  }
+  @media (hover: none) { #brief .kb { display: none; } }
   #sheet-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(4,6,10,.62); opacity: 0; pointer-events: none; transition: opacity .25s ease; }
   #sheet-backdrop.open { opacity: 1; pointer-events: auto; }
   .sheet {
@@ -720,6 +761,24 @@
   </section>
 </main>
 
+
+<!-- ============ FIRST-VISIT BRIEFING ============ -->
+<div id="brief" role="dialog" aria-modal="true" aria-labelledby="brief-h" aria-hidden="true">
+  <div class="panel">
+    <div class="b-top"><span>Co-driver</span><b>Briefing</b></div>
+    <h2 id="brief-h">Four things to know</h2>
+    <div class="scan"></div>
+    <ol>
+      <li><span class="n">01</span><b>Lanes</b><span class="d">Slow, Cool or Hype. Tap a lane to change the mood of the road. <span class="kb">Keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>.</span></span></li>
+      <li><span class="n">02</span><b>Gear stick</b><span class="d">Drag it to set the volume. N is silent, 6 is full throttle.</span></li>
+      <li><span class="n">03</span><b>Like / Dislike</b><span class="d">Rate what you hear. The road learns your taste and plays more of what you like.</span></li>
+      <li><span class="n">04</span><b>Radio</b><span class="d">Save songs to Favs, then search every song from the same place.</span></li>
+    </ol>
+    <button type="button" class="b-go" id="brief-go">Start driving</button>
+    <button type="button" class="b-skip" id="brief-skip">Skip</button>
+  </div>
+</div>
+
 <div id="sheet-backdrop"></div>
 
 <aside id="garage" class="sheet" role="dialog" aria-modal="true" aria-label="Garage">
@@ -730,6 +789,7 @@
     <button id="rain" type="button">☔ Rain: <span>off</span></button>
     <button id="taste-reset" type="button" title="Forget every like and dislike on this device">↺ Reset likes: <span>0</span></button>
     <button id="debug-copy" type="button" title="Copies a short technical report you can send to the developer">🩺 Copy debug info</button>
+    <button id="tour-open" type="button" title="Show the quick tour again">Quick tour</button>
     <button id="wakelock" type="button" title="Keeps your screen on so the display doesn't lock — music keeps playing either way">🔆 Keep awake: <span>off</span></button>
   </div>
   <span class="group-label">Car sounds</span>
@@ -2286,6 +2346,34 @@
       if (el.readyState >= 1) seek(); else el.addEventListener("loadedmetadata", seek, { once: true });
     }
   }
+
+  /* ---- First-visit briefing: shows once per device, replayable from the Garage ---- */
+  const BRIEF_KEY = "nightrace.briefed";
+  const briefEl = document.getElementById("brief");
+  let briefTimer = 0, briefReturn = null;
+  function showBrief(){
+    if (!briefEl || briefEl.classList.contains("on")) return;
+    briefReturn = document.activeElement;
+    briefEl.setAttribute("aria-hidden", "false");
+    briefEl.classList.add("on");
+    lsSet(BRIEF_KEY, "1");
+    setTimeout(() => { try { document.getElementById("brief-go").focus({ preventScroll: true }); } catch(e){} }, reduced ? 50 : 2000);
+  }
+  function hideBrief(){
+    if (!briefEl) return;
+    clearTimeout(briefTimer);
+    briefEl.classList.remove("on");
+    briefEl.setAttribute("aria-hidden", "true");
+    try { if (briefReturn && briefReturn.focus) briefReturn.focus({ preventScroll: true }); } catch(e){}
+  }
+  if (briefEl){
+    document.getElementById("brief-go").addEventListener("click", hideBrief);
+    document.getElementById("brief-skip").addEventListener("click", hideBrief);
+    briefEl.addEventListener("click", e => { if (e.target === briefEl) hideBrief(); });
+    addEventListener("keydown", e => { if (briefEl.classList.contains("on") && (e.key === "Escape" || e.key === "Enter")) { e.preventDefault(); e.stopPropagation(); hideBrief(); } }, true);
+    const tour = document.getElementById("tour-open");
+    if (tour) tour.addEventListener("click", () => { setSheet(null); setTimeout(showBrief, 350); });
+  }
   function begin(resume){
     if (started) return;
     started = true;
@@ -2305,6 +2393,7 @@
       if (list().length) load(1);
     }, 1400);
     pingSession();
+    if (!lsGet(BRIEF_KEY, "")) briefTimer = setTimeout(showBrief, reduced ? 1500 : 3200);
 
     // Media Session — registering these is what makes Android show working
     // Play/Pause/Next/Previous on the lock screen and notification shade,
