@@ -487,6 +487,17 @@
     #brief .scan { transform: none; } #brief li, #brief .b-go { opacity: 1; }
   }
   @media (hover: none) { #brief .kb { display: none; } }
+
+  /* ---- Personal / Radio switch ---- */
+  .modesel { display: flex; margin: .7rem auto 0; width: max-content; max-width: 100%; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: rgba(8,10,16,.6); }
+  .modesel button { background: transparent; border: 0; color: var(--muted-bright); font: inherit; font-size: .68rem; letter-spacing: .22em; text-transform: uppercase; padding: .5rem 1.1rem; cursor: pointer; }
+  .modesel button[aria-pressed="true"] { color: var(--asphalt); background: var(--accent); font-weight: 600; }
+  .modesel button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+  .modesel button.na { opacity: .45; }
+  .modenote { min-height: 1.1em; margin: .35rem 0 0; text-align: center; font-size: .66rem; letter-spacing: .12em; color: var(--muted-bright); }
+  .radio #prev, .radio #next, .radio #shuffle { opacity: .28; }
+  .radio .bar { pointer-events: none; }
+  .radio .np-mode::after { content: " \00B7  live"; color: var(--accent); }
   #sheet-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(4,6,10,.62); opacity: 0; pointer-events: none; transition: opacity .25s ease; }
   #sheet-backdrop.open { opacity: 1; pointer-events: auto; }
   .sheet {
@@ -686,6 +697,11 @@
         <b>Hype</b><small>touge, redline</small>
       </button>
     </div>
+    <div class="modesel" id="modesel" role="group" aria-label="Play mode">
+      <button type="button" data-play="personal" aria-pressed="true">Personal</button>
+      <button type="button" data-play="radio" aria-pressed="false">Radio</button>
+    </div>
+    <div class="modenote" id="radio-note" role="status" aria-live="polite"></div>
     <div class="dock">
       <button id="favs-open" type="button" aria-haspopup="dialog" aria-controls="favs">📻 Favs<span id="fav-count"></span></button>
       <button id="garage-open" type="button" aria-haspopup="dialog" aria-controls="garage">🛠 Garage</button>
@@ -1015,7 +1031,7 @@
       for (const row of data) {
         if (!grouped[row.mode]) continue;
         const pub = supa.storage.from("tracks-audio").getPublicUrl(row.path);
-        grouped[row.mode].push({ id: row.id, title: row.title, artist: row.artist || "—", src: pub.data.publicUrl, path: row.path, intro: !!row.intro });
+        grouped[row.mode].push({ id: row.id, title: row.title, artist: row.artist || "—", src: pub.data.publicUrl, path: row.path, intro: !!row.intro, dur: Number(row.duration) || 0, pos: Number(row.position) || 0 });
       }
       // only overwrite a lane that actually has rows — an empty lane in the
       // database (nothing uploaded to it yet) keeps its local fallback
@@ -1025,6 +1041,7 @@
       if (typeof recomputeArtists === "function") recomputeArtists();
       if (started && typeof buildOrder === "function") buildOrder();
       try { paintContinue(); } catch(e){}
+      try { paintRadioAvail(); } catch(e){}
       markGateReady();
     } catch(e){ markGateReady(); /* network hiccup — local fallback list still works */ }
   }
@@ -1106,6 +1123,7 @@
   let order = [];
   let cursor = -1;
   let shuffle = true;
+  let radioOn = false, radioPref = false, radioTunedAt = 0, radioNoteT = 0;
   let taste = {};            // { trackSrc: 1 (liked) | -1 (disliked) }, per device
   let artistTaste = {};      // { artist: net score } derived from taste
   let started = false;
@@ -1135,7 +1153,7 @@
   /* ---- persisted settings (per browser, best-effort) ---- */
   const STORE = "nightrace.settings.v1";
   function save(){
-    try { localStorage.setItem(STORE, JSON.stringify({ mode, shuffle, volume: masterVolume, rainLevel, eq, taste, favs, recent })); }
+    try { localStorage.setItem(STORE, JSON.stringify({ mode, shuffle, volume: masterVolume, rainLevel, eq, taste, favs, recent, radio: radioPref })); }
     catch(e){ /* storage unavailable — settings just won't persist */ }
   }
   function restore(){
@@ -1157,6 +1175,7 @@
         recent = s.recent.filter(f => f && typeof f.src === "string" && typeof f.title === "string").slice(0, 30)
           .map(f => ({ src: f.src, id: f.id || null, title: f.title.slice(0, 200), artist: String(f.artist || "").slice(0, 200), mode: ["slow","cool","hype"].includes(f.mode) ? f.mode : "slow" }));
       }
+      if (s.radio === true) radioPref = true;
       if (typeof s.rainLevel === "number") rainLevel = Math.min(3, Math.max(0, s.rainLevel));
       if (s.eq && Array.isArray(s.eq.bands) && s.eq.bands.length === EQ_FREQS.length) {
         const clamp = v => Math.min(12, Math.max(-12, Math.round(+v) || 0));
@@ -1936,6 +1955,7 @@
   function load(step){
     const l = list();
     if (!l.length){ paint(null); decks.forEach(d => d.pause()); return; }
+    if (radioOn) { radioTune(document.hidden ? 0 : 500); return; }
     if (!order.length) buildOrder();
     const stepped = (cursor + step + order.length) % order.length;
     cursor = pickAvoidingRepeats(l, stepped, step);
@@ -1971,7 +1991,7 @@
      and auto-advance always act on the right deck; only the title/progress
      display waits for the audible midpoint. Starting another switch mid-fade
      reuses the quieter deck and fades the current one out from wherever it is. */
-  function crossfadeTo(t, ms){
+  function crossfadeTo(t, ms, startAt){
     ms = ms || FADE_MS;
     const token = ++fadeToken;
     clearTimeout(handoffTimer); clearTimeout(fadeTimer);
@@ -1979,7 +1999,7 @@
     const go = () => {
       if (token !== fadeToken) return;
       const inc = decks[inIdx];
-      inc._alt = playUrl(t) !== t.src ? t.src : null; inc.src = playUrl(t); inc.currentTime = 0;
+      inc._alt = playUrl(t) !== t.src ? t.src : null; inc._start = startAt || 0; inc.src = playUrl(t); inc.currentTime = startAt || 0;
       setDeckGain(inIdx, 0);
       inc.play().catch(()=>{});
       rampDeck(inIdx, 1, ms / 1000);
@@ -2000,12 +2020,12 @@
     else go();
   }
 
-  function straightLoad(t, autoplay){
+  function straightLoad(t, autoplay, startAt){
     ++fadeToken; clearTimeout(handoffTimer); clearTimeout(fadeTimer);
     fading = false; fadingOutDeck = null;
     const i = activeIdx, cur = decks[i];
     decks[1 - i].pause(); setDeckGain(1 - i, 0);
-    cur._alt = playUrl(t) !== t.src ? t.src : null; cur.src = playUrl(t); cur.currentTime = 0; setDeckGain(i, 1);
+    cur._alt = playUrl(t) !== t.src ? t.src : null; cur._start = startAt || 0; cur.src = playUrl(t); cur.currentTime = startAt || 0; setDeckGain(i, 1);
     shownIdx = i; paint(t);
     if (autoplay) cur.play().catch(()=>{}); else cur.pause();
     icon();
@@ -2014,7 +2034,7 @@
   // start the next track's crossfade before this one runs out, rather
   // than waiting for it to end and finding silence
   function checkAutoAdvance(el){
-    if (fadingNow() || list().length < 2 || !el.duration) return;
+    if (radioOn || fadingNow() || list().length < 2 || !el.duration) return;
     if (document.hidden) return;   // in the background, wait for 'ended' and switch plainly
     if (el.duration - el.currentTime <= FADE_MS / 1000) load(1);
   }
@@ -2088,6 +2108,7 @@
     if (navigator.vibrate) navigator.vibrate(10);
   }
   function playFav(f, keepOpen){
+    if (radioOn) setRadio(false);
     const t = (TRACKS[laneOf(f.src)] || []).find(q => q.src === f.src), m = laneOf(f.src);
     if (!t || !m) return;
     if (!keepOpen) setSheet(null);
@@ -2194,7 +2215,7 @@
     castVote(t, tasteOf(t));
     if (navigator.vibrate) navigator.vibrate(10);
     if (shuffle) buildOrder(t);          // re-rank what comes next, keep this track current
-    if (tasteOf(t) < 0) load(1);         // disliked: move on right away
+    if (tasteOf(t) < 0 && !radioOn) load(1);   // disliked: move on right away (not on the radio, which is live)
   }
   function paint(t){
     shownTrack = t || null;
@@ -2227,6 +2248,7 @@
     if (!list().length) return;
     if (ctx && ctx.state === "suspended") ctx.resume();
     const cur = decks[activeIdx];
+    if (radioOn && (cur.paused || !cur.src)) { radioTune(0); return; }   // radio is live: resuming means rejoining what is on air now
     if (!cur.src) { load(1); return; }
     if (cur.paused) cur.play().catch(()=>{});
     else decks.forEach(d => d.pause());
@@ -2298,7 +2320,7 @@
     root.style.setProperty("--accent-dim", hexA(fromVisual.hue, .18));
 
     document.querySelectorAll(".lane").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === m)));
-    $("#np-mode").textContent = m;
+    $("#np-mode").textContent = m;   // " · live" is added by CSS while the radio is on
     $("#jp-mode").textContent = MODES[m].jp;
     if (!reduced) shake = m === "hype" ? 1 : 0.4;
 
@@ -2308,7 +2330,11 @@
     const wantT = want ? list().find(q => q.src === want.src) : null;   // a Favourite tapped from another lane
     buildOrder(wantT);
 
-    if (list().length) {
+    const live = radioOn ? (radioAvail(m) ? radioAt(m, Date.now()) : (setRadio(false, "No live radio on this lane yet"), null)) : null;
+    if (live) {
+      radioTunedAt = Date.now();
+      if (wasPlaying) crossfadeTo(live.t, MODE_FADE_MS, live.off); else straightLoad(live.t, false, live.off);
+    } else if (list().length) {
       cursor = wantT ? 0 : pickModeEntryCursor();
       const t = list()[order[cursor]];
       rememberPlayed(t);
@@ -2325,6 +2351,62 @@
     save();
     if (started) pingSession();
   }
+
+
+  /* ================= Radio mode =================
+     Every listener works out "what is on air" from the clock, so everyone hears the same song at the same
+     moment with no server in the middle. Each lane is a station: its songs play back to back in their
+     saved order, and the position in that loop is (time since 1970) modulo (total length). It needs each
+     song's length (the admin fills it in), so a lane is only on the air once at least 2 songs have one. */
+  const radioList = m => TRACKS[m].filter(t => t.dur > 0).sort((a, b) => (a.pos - b.pos) || String(a.id).localeCompare(String(b.id)));
+  const radioAvail = m => radioList(m).length >= 2;
+  function radioAt(m, ms){
+    const l = radioList(m); if (l.length < 2) return null;
+    let total = 0; for (const t of l) total += t.dur;
+    let x = ((ms / 1000) % total + total) % total;
+    for (const t of l) { if (x < t.dur) return { t, off: x }; x -= t.dur; }
+    return { t: l[0], off: 0 };
+  }
+  function radioTune(fadeMs){
+    const live = radioAt(mode, Date.now());
+    if (!live) { setRadio(false, "No live radio on this lane yet"); load(1); return; }
+    radioTunedAt = Date.now();
+    rememberPlayed(live.t);
+    logEv("radio: " + live.t.title + " @" + Math.round(live.off) + "s");
+    const cur = decks[activeIdx];
+    if (fadeMs && !cur.paused && !document.hidden) crossfadeTo(live.t, fadeMs, live.off); else straightLoad(live.t, true, live.off);
+  }
+  function radioNote(msg){
+    const n = $("#radio-note"); n.textContent = msg || "";
+    clearTimeout(radioNoteT); if (msg) radioNoteT = setTimeout(() => { n.textContent = ""; }, 4500);
+  }
+  function paintRadioAvail(){
+    const ok = radioAvail(mode), b = document.querySelector('#modesel [data-play="radio"]');
+    if (b) { b.classList.toggle("na", !ok); b.title = ok ? "Everyone hears the same song at the same time" : "Radio for this lane is not on the air yet"; }
+  }
+  function setRadio(on, why, quiet){
+    if (on && !radioAvail(mode)) { radioNote("Radio for the " + mode + " lane is not on the air yet."); return; }
+    radioOn = !!on;
+    if (!quiet || !on) radioPref = radioOn;
+    root.classList.toggle("radio", radioOn);
+    document.querySelectorAll("#modesel button").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.play === "radio") === radioOn)));
+    paintRadioAvail();
+    if (why) radioNote(why); else radioNote(radioOn ? "Live: everyone hears this together" : "");
+    save();
+    if (!started) return;
+    if (radioOn && !quiet) radioTune(900);
+    if (!radioOn) { buildOrder(shownTrack); cursor = shownTrack ? 0 : -1; }
+  }
+  const skip = d => { if (radioOn) { radioNote("Radio is live, so there is no skipping. Switch to Personal for that."); return; } load(d); };
+  document.querySelectorAll("#modesel button").forEach(b => b.addEventListener("click", () => setRadio(b.dataset.play === "radio")));
+  // Keep in step with the clock: after a pause, a sleep or a stall, jump back to what is on air.
+  setInterval(() => {
+    if (!radioOn || !started || document.hidden) return;
+    const cur = decks[activeIdx]; if (cur.paused || fadingNow() || Date.now() - radioTunedAt < 6000) return;
+    const live = radioAt(mode, Date.now()); if (!live) return;
+    if (!shownTrack || shownTrack.src !== live.t.src) { radioTune(700); return; }
+    if (cur.readyState >= 2 && Math.abs(cur.currentTime - live.off) > 5) { try { cur.currentTime = live.off; } catch(e){} }
+  }, 5000);
 
   /* ================= wiring ================= */
   $("#start").addEventListener("click", () => begin());
@@ -2402,7 +2484,8 @@
     $("#deck").classList.add("on");
     $("#deck").setAttribute("aria-hidden","false");
     setTimeout(()=> {
-      if (resume === true && lastRide && laneOf(lastRide.src)) { resumeRide(lastRide); return; }
+      if (radioPref && radioAvail(mode)) setRadio(true, "", true);
+      if (!radioOn && resume === true && lastRide && laneOf(lastRide.src)) { resumeRide(lastRide); return; }
       if (list().length) load(1);
     }, 1400);
     pingSession();
@@ -2416,20 +2499,21 @@
     if ("mediaSession" in navigator) {
       navigator.mediaSession.setActionHandler("play", playPause);
       navigator.mediaSession.setActionHandler("pause", playPause);
-      navigator.mediaSession.setActionHandler("previoustrack", ()=> load(-1));
-      navigator.mediaSession.setActionHandler("nexttrack", ()=> load(1));
+      navigator.mediaSession.setActionHandler("previoustrack", ()=> skip(-1));
+      navigator.mediaSession.setActionHandler("nexttrack", ()=> skip(1));
     }
     if (rainLevel > 0) startRainAudio();
   }
 
   document.querySelectorAll(".lane").forEach(b => b.addEventListener("click", ()=> setMode(b.dataset.mode)));
   $("#play").addEventListener("click", playPause);
-  $("#next").addEventListener("click", ()=> load(1));
+  $("#next").addEventListener("click", ()=> skip(1));
   $("#like").addEventListener("click", ()=> rate(1));
   $("#dislike").addEventListener("click", ()=> rate(-1));
   $("#taste-reset").addEventListener("click", ()=> { taste = {}; recomputeArtists(); save(); paintRate(shownTrack); if (shuffle && started) buildOrder(shownTrack); });
-  $("#prev").addEventListener("click", ()=> load(-1));
+  $("#prev").addEventListener("click", ()=> skip(-1));
   $("#shuffle").addEventListener("click", e => {
+    if (radioOn) { radioNote("Shuffle is off while the radio is live."); return; }
     shuffle = !shuffle;
     e.currentTarget.querySelector("span").textContent = shuffle ? "on" : "off";
     e.currentTarget.classList.toggle("is-on", shuffle);
@@ -2553,7 +2637,7 @@
     el.addEventListener("waiting", ()=>{ if (el === active()) logEv("waiting"); });
     el.addEventListener("error", ()=>{
       // the Cloudflare copy is missing or unreachable: quietly use the Supabase copy of the same song
-      if (el._alt && el.src !== el._alt) { const alt = el._alt; el._alt = null; logEv("r2 miss, using supabase"); el.src = alt; el.currentTime = 0; el.play().catch(()=>{}); return; }
+      if (el._alt && el.src !== el._alt) { const alt = el._alt; el._alt = null; logEv("r2 miss, using supabase"); el.src = alt; el.currentTime = el._start || 0; el.play().catch(()=>{}); return; }
       if (el !== active() || !el.src) return;
       logEv("error " + (el.error ? el.error.code : "?"));
       $("#np-sub").textContent = "Couldn't load this track. Skipping…";
@@ -2593,13 +2677,13 @@
 
   $("#bar").addEventListener("click", e => {
     const cur = shown();
-    if (!cur.duration) return;
+    if (radioOn || !cur.duration) return;
     const r = e.currentTarget.getBoundingClientRect();
     cur.currentTime = ((e.clientX - r.left)/r.width) * cur.duration;
   });
   $("#bar").addEventListener("keydown", e => {
     const cur = shown();
-    if (!cur.duration) return;
+    if (radioOn || !cur.duration) return;
     if (e.key === "ArrowRight") cur.currentTime = Math.min(cur.duration, cur.currentTime+5);
     if (e.key === "ArrowLeft")  cur.currentTime = Math.max(0, cur.currentTime-5);
   });
@@ -2753,10 +2837,10 @@
       case "1": setMode("slow"); break;
       case "2": setMode("cool"); break;
       case "3": setMode("hype"); break;
-      case "n": case "N": load(1); break;
-      case "p": case "P": load(-1); break;
-      case "ArrowRight": if (!onSlider) { e.preventDefault(); load(1); } break;
-      case "ArrowLeft":  if (!onSlider) { e.preventDefault(); load(-1); } break;
+      case "n": case "N": skip(1); break;
+      case "p": case "P": skip(-1); break;
+      case "ArrowRight": if (!onSlider) { e.preventDefault(); skip(1); } break;
+      case "ArrowLeft":  if (!onSlider) { e.preventDefault(); skip(-1); } break;
       case "ArrowUp":    if (!onSlider) { e.preventDefault(); setGear(curGear + 1); } break;
       case "ArrowDown":  if (!onSlider) { e.preventDefault(); setGear(curGear - 1); } break;
       case "m": case "M": if (curGear > 0) { lastGear = curGear; setGear(0); } else setGear(lastGear || 4); break;
@@ -2764,7 +2848,7 @@
       case "d": case "D": rate(-1); break;
       case "f": case "F": toggleFav(); break;
       case "v": case "V": renderFavs(); setSheet(favsEl); break;
-      case "s": case "S": $("#shuffle").click(); break;
+      case "s": case "S": if (!radioOn) $("#shuffle").click(); break;
       case "r": case "R": $("#rain").click(); break;
       case "g": case "G": setSheet(document.getElementById("garage")); break;
       case "t": case "T": setSheet(document.getElementById("tuning")); break;
