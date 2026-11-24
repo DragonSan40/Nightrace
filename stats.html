@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Night Race — Live Stats</title>
+<meta name="description" content="Live numbers from Night Race: racers online, plays, likes and the most played songs.">
+<link rel="canonical" href="https://nightrace.pacecorp.in/stats.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Night Race — Live Stats">
+<meta property="og:description" content="Racers online, plays, likes and the top songs on the night drive.">
+<meta property="og:url" content="https://nightrace.pacecorp.in/stats.html">
+<meta property="og:image" content="https://nightrace.pacecorp.in/og-image.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#080A10">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏁</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --asphalt:#080A10; --panel:#10151F; --line:#1E2636; --ink:#E8ECF4; --muted:#6F7C93; --muted-bright:#A4B1CC; --accent:#E8A33D; --slow:#E8A33D; --cool:#3FC9E6; --hype:#FF3D6E; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--asphalt); color: var(--ink); font-family: "Chakra Petch", system-ui, sans-serif; }
+  body { min-height: 100vh; background: radial-gradient(1000px 520px at 50% -8%, rgba(232,163,61,.14), transparent 60%), var(--asphalt); }
+  main { width: min(920px, 100%); margin: 0 auto; padding: 36px 16px 56px; }
+  header { text-align: center; margin-bottom: 30px; }
+  h1 { margin: 0; font-size: clamp(1.6rem, 6vw, 2.5rem); letter-spacing: .34em; font-weight: 700; text-transform: uppercase; }
+  h1 i { color: var(--accent); font-style: normal; }
+  .sub { margin: .5rem 0 0; font-size: .72rem; letter-spacing: .3em; color: var(--muted); text-transform: uppercase; }
+  .live { display: inline-flex; align-items: center; gap: .5rem; margin-top: 1rem; padding: .35rem .8rem; border: 1px solid var(--line); border-radius: 999px; font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted-bright); }
+  .live i { width: .5rem; height: .5rem; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .card { padding: 18px 14px 14px; background: linear-gradient(180deg, rgba(20,26,38,.9), rgba(12,16,24,.9)); border: 1px solid var(--line); border-radius: 12px; text-align: center; }
+  .card b { display: block; font-size: clamp(1.9rem, 7vw, 2.7rem); font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .card span { display: block; margin-top: .4rem; font-size: .66rem; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
+  .card.hot b { color: var(--accent); text-shadow: 0 0 24px rgba(232,163,61,.45); }
+  h2 { margin: 34px 0 12px; font-size: .78rem; letter-spacing: .3em; text-transform: uppercase; color: var(--muted-bright); font-weight: 600; }
+  .lanes { display: grid; gap: 10px; }
+  .lane { display: grid; grid-template-columns: 56px 1fr 34px; gap: 12px; align-items: center; font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; }
+  .lane .bar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .lane .bar i { display: block; height: 100%; width: 0; border-radius: 99px; transition: width 1s ease; }
+  .lane .n { text-align: right; color: var(--muted-bright); font-variant-numeric: tabular-nums; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 700px) { .cols { grid-template-columns: 1fr; } }
+  ol { list-style: none; margin: 0; padding: 0; }
+  li { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }
+  li:last-child { border-bottom: 0; }
+  li .r { color: var(--muted); font-size: .78rem; }
+  li .t { min-width: 0; } li .t b { display: block; font-weight: 600; font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  li .t small { color: var(--muted); font-size: .72rem; letter-spacing: .06em; }
+  li .v { font-variant-numeric: tabular-nums; color: var(--accent); font-size: .9rem; }
+  .empty { color: var(--muted); font-size: .85rem; padding: 10px 0; }
+  .cta { display: block; width: max-content; margin: 38px auto 0; padding: .85rem 2.2rem; border-radius: 10px; background: var(--accent); color: var(--asphalt); text-decoration: none; font-weight: 700; letter-spacing: .3em; font-size: .8rem; text-transform: uppercase; box-shadow: 0 10px 30px rgba(232,163,61,.25); }
+  .cta:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  footer { margin-top: 26px; text-align: center; font-size: .66rem; letter-spacing: .2em; color: var(--muted); text-transform: uppercase; }
+  .err { text-align: center; color: var(--muted-bright); margin-top: 20px; font-size: .85rem; }
+  @media (prefers-reduced-motion: reduce) { .live i { animation: none; } .lane .bar i { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Night<i>·</i>Race</h1>
+    <p class="sub">Live stats &middot; powered by pacecorp</p>
+    <div class="live"><i></i><span id="live-line">Connecting&hellip;</span></div>
+  </header>
+
+  <section class="grid" aria-label="Totals">
+    <div class="card hot"><b id="s-now">&mdash;</b><span>Racers online now</span></div>
+    <div class="card"><b id="s-plays">&mdash;</b><span>Songs played</span></div>
+    <div class="card"><b id="s-likes">&mdash;</b><span>Likes</span></div>
+    <div class="card"><b id="s-listeners">&mdash;</b><span>Racers so far</span></div>
+    <div class="card"><b id="s-countries">&mdash;</b><span>Countries</span></div>
+    <div class="card"><b id="s-songs">&mdash;</b><span>Songs in the garage</span></div>
+  </section>
+
+  <h2>Songs per lane</h2>
+  <div class="lanes" id="lanes"></div>
+
+  <div class="cols">
+    <section><h2>Most played</h2><ol id="top-played"><li class="empty">Loading&hellip;</li></ol></section>
+    <section><h2>Most liked</h2><ol id="top-liked"><li class="empty">Loading&hellip;</li></ol></section>
+  </div>
+
+  <div id="err" class="err" hidden></div>
+  <a class="cta" href="./">Start driving</a>
+  <footer>Totals only. No listener is ever identified here. <span id="stamp"></span></footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.109.0"></script>
+<script>
+(function(){
+  "use strict";
+  const SUPABASE_URL = "https://opbdbdpbpowwbkukqtcz.supabase.co", SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wYmRiZHBicG93d2JrdWtxdGN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4MzI2MTUsImV4cCI6MjEwNjQwODYxNX0.2Iaaakjz_ftDZFv_p3iuvbK7Ig-8gHXB12wHERSyioM";
+  const $ = id => document.getElementById(id);
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const fmt = n => Number(n || 0).toLocaleString("en-IN");
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const shown = {};
+  function count(id, to){
+    const el = $(id); to = Number(to) || 0; const from = shown[id] || 0; shown[id] = to;
+    if (reduced || from === to) { el.textContent = fmt(to); return; }
+    const t0 = performance.now(), dur = 900;
+    (function step(now){ const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(Math.round(from + (to - from) * e)); if (k < 1) requestAnimationFrame(step); })(t0);
+  }
+  const LANE_COL = { slow: "var(--slow)", cool: "var(--cool)", hype: "var(--hype)" };
+  function list(id, rows, key, unit){
+    const ol = $(id);
+    if (!rows || !rows.length) { ol.innerHTML = '<li class="empty">Nothing yet. Be the first to ride.</li>'; return; }
+    ol.innerHTML = rows.map((r, i) => '<li><span class="r">' + (i + 1) + '</span><span class="t"><b>' + esc(r.title) + '</b><small>' + esc(r.artist || "") + (r.artist ? " &middot; " : "") + esc(r.mode) + '</small></span><span class="v">' + fmt(r[key]) + " " + unit + '</span></li>').join("");
+  }
+  function paint(d){
+    $("err").hidden = true;
+    count("s-plays", d.plays); count("s-likes", d.likes); count("s-listeners", d.listeners); count("s-countries", d.countries); count("s-songs", d.songs);
+    const lanes = d.lanes || {}, max = Math.max(1, ...Object.values(lanes).map(Number));
+    $("lanes").innerHTML = ["slow", "cool", "hype"].map(m => '<div class="lane"><span>' + m + '</span><span class="bar"><i style="background:' + LANE_COL[m] + '" data-w="' + Math.round((Number(lanes[m]) || 0) / max * 100) + '"></i></span><span class="n">' + fmt(lanes[m]) + '</span></div>').join("");
+    requestAnimationFrame(() => document.querySelectorAll(".lane .bar i").forEach(i => { i.style.width = i.dataset.w + "%"; }));
+    list("top-played", d.top_played, "plays", "plays"); list("top-liked", d.top_liked, "likes", "likes");
+    $("stamp").textContent = "Updated " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+  async function load(){
+    if (!sb) { fail("Couldn't reach the stats service."); return; }
+    try {
+      const { data, error } = await sb.rpc("public_stats");
+      if (error || !data) throw error || new Error("no data");
+      if (data.limited) { fail("Too many refreshes. Give it a minute."); return; }
+      paint(data);
+    } catch(e) { fail("Stats are unavailable right now."); }
+  }
+  function fail(msg){ const e = $("err"); e.textContent = msg; e.hidden = false; }
+  // live racers: join the same presence room as the player, as a silent observer (never announces itself)
+  function live(){
+    if (!sb) return;
+    try {
+      const ch = sb.channel("nightrace-presence", { config: { presence: { key: "stats-" + Math.random().toString(36).slice(2) } } });
+      ch.on("presence", { event: "sync" }, () => {
+        const n = Object.keys(ch.presenceState()).filter(k => !k.startsWith("stats-")).length;
+        count("s-now", n);
+        $("live-line").textContent = n === 1 ? "1 racer on the road right now" : n + " racers on the road right now";
+      }).subscribe();
+    } catch(e) { $("live-line").textContent = "Live count unavailable"; }
+  }
+  load(); live(); setInterval(() => { if (!document.hidden) load(); }, 60000);
+})();
+</script>
+</body>
+</html>
