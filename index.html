@@ -498,6 +498,8 @@
   .radio #prev, .radio #next, .radio #shuffle { opacity: .28; }
   .radio .bar { pointer-events: none; }
   .radio .np-mode::after { content: " \00B7  live"; color: var(--accent); }
+  .util-link { display: inline-flex; align-items: center; padding: .55rem .9rem; border: 1px solid var(--line); border-radius: 9px; color: var(--muted-bright); text-decoration: none; font-size: .78rem; background: rgba(16,21,31,.7); }
+  .util-link:hover { color: var(--ink); border-color: var(--accent); }
   #sheet-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(4,6,10,.62); opacity: 0; pointer-events: none; transition: opacity .25s ease; }
   #sheet-backdrop.open { opacity: 1; pointer-events: auto; }
   .sheet {
@@ -803,8 +805,10 @@
   <div class="utility">
     <button id="shuffle" type="button" class="is-on">🔀 Shuffle: <span>on</span></button>
     <button id="rain" type="button">☔ Rain: <span>off</span></button>
+    <button id="revsound" type="button" title="A short engine rev when you change gear">Shift sound: <span>off</span></button>
     <button id="taste-reset" type="button" title="Forget every like and dislike on this device">↺ Reset likes: <span>0</span></button>
     <button id="debug-copy" type="button" title="Copies a short technical report you can send to the developer">🩺 Copy debug info</button>
+    <a id="stats-link" class="util-link" href="stats.html" target="_blank" rel="noopener">Live stats</a>
     <button id="tour-open" type="button" title="Show the quick tour again">Quick tour</button>
     <button id="wakelock" type="button" title="Keeps your screen on so the display doesn't lock — music keeps playing either way">🔆 Keep awake: <span>off</span></button>
   </div>
@@ -1134,6 +1138,7 @@
   let bass = 0, level = 0;              // smoothed 0..1
   let needleNow = 0, needleTarget = 0;
   let rainLevel = 0;   // 0 off, 1 soft, 2 med, 3 heavy
+  let shiftSound = false;   // short engine rev on gear changes (off until the listener turns it on)
 
   /* ---- Tuning equalizer state (10 bands + preamp gain, in dB) ---- */
   const EQ_FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
@@ -1153,7 +1158,7 @@
   /* ---- persisted settings (per browser, best-effort) ---- */
   const STORE = "nightrace.settings.v1";
   function save(){
-    try { localStorage.setItem(STORE, JSON.stringify({ mode, shuffle, volume: masterVolume, rainLevel, eq, taste, favs, recent, radio: radioPref })); }
+    try { localStorage.setItem(STORE, JSON.stringify({ mode, shuffle, volume: masterVolume, rainLevel, eq, taste, favs, recent, radio: radioPref, shiftSound })); }
     catch(e){ /* storage unavailable — settings just won't persist */ }
   }
   function restore(){
@@ -1176,6 +1181,7 @@
           .map(f => ({ src: f.src, id: f.id || null, title: f.title.slice(0, 200), artist: String(f.artist || "").slice(0, 200), mode: ["slow","cool","hype"].includes(f.mode) ? f.mode : "slow" }));
       }
       if (s.radio === true) radioPref = true;
+      if (s.shiftSound === true) shiftSound = true;
       if (typeof s.rainLevel === "number") rainLevel = Math.min(3, Math.max(0, s.rainLevel));
       if (s.eq && Array.isArray(s.eq.bands) && s.eq.bands.length === EQ_FREQS.length) {
         const clamp = v => Math.min(12, Math.max(-12, Math.round(+v) || 0));
@@ -2520,6 +2526,13 @@
     buildOrder();
     save();
   });
+  function paintShift(){ $("#revsound").querySelector("span").textContent = shiftSound ? "on" : "off"; $("#revsound").classList.toggle("is-on", shiftSound); }
+  $("#revsound").addEventListener("click", e => {
+    shiftSound = !shiftSound;
+    paintShift();
+    save();
+    if (shiftSound) shiftRev(1, 1);   // a sample, so they hear what they switched on
+  });
   $("#rain").addEventListener("click", e => {
     rainLevel = (rainLevel + 1) % RAIN_LEVELS.length;
     e.currentTarget.querySelector("span").textContent = RAIN_LABELS[rainLevel];
@@ -2719,12 +2732,36 @@
       ], { duration: 320, easing: "ease-out" });
     }
   }
+
+  /* ---- Shift sound: a short synthesized engine rev on gear changes (no audio files).
+     Up-shift: revs up, then drops as the next gear bites. Down-shift: a quick throttle blip.
+     Routed through masterGain, so the volume gear sets how loud it is (N is silent). ---- */
+  let lastShiftSnd = 0;
+  function shiftRev(dir, steps){
+    if (!shiftSound || !ctx || !masterGain || ctx.state !== "running") return;
+    const now = performance.now(); if (now - lastShiftSnd < 110) return; lastShiftSnd = now;
+    try {
+      const t = ctx.currentTime, k = Math.min(1.5, 1 + 0.15 * (steps - 1));
+      const out = ctx.createGain(); out.gain.value = 0.0001; out.connect(masterGain);
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 4; lp.connect(out);
+      const o1 = ctx.createOscillator(), o2 = ctx.createOscillator();
+      o1.type = "sawtooth"; o2.type = "square";
+      const lo = dir > 0 ? 78 : 96, hi = dir > 0 ? 190 * k : 150 * k, end = dir > 0 ? 70 : 84, rise = dir > 0 ? 0.17 : 0.1, total = dir > 0 ? 0.46 : 0.3;
+      o1.frequency.setValueAtTime(lo, t); o1.frequency.exponentialRampToValueAtTime(hi, t + rise); o1.frequency.exponentialRampToValueAtTime(end, t + total);
+      o2.frequency.setValueAtTime(lo * 1.5, t); o2.frequency.exponentialRampToValueAtTime(hi * 1.5, t + rise); o2.frequency.exponentialRampToValueAtTime(end * 1.5, t + total);
+      lp.frequency.setValueAtTime(500, t); lp.frequency.exponentialRampToValueAtTime(2200, t + rise); lp.frequency.exponentialRampToValueAtTime(600, t + total);
+      const g2 = ctx.createGain(); g2.gain.value = 0.35;
+      o1.connect(lp); o2.connect(g2); g2.connect(lp);
+      out.gain.exponentialRampToValueAtTime(0.28, t + 0.03); out.gain.setValueAtTime(0.28, t + rise); out.gain.exponentialRampToValueAtTime(0.0001, t + total + 0.04);
+      o1.start(t); o2.start(t); o1.stop(t + total + 0.08); o2.stop(t + total + 0.08);
+    } catch(e){ /* sound is optional */ }
+  }
   function setGear(g){
     g = Math.min(6, Math.max(0, g));
     if (g === curGear) return;
     const prev = curGear;
     paintGear(g);
-    if (prev >= 0) gearJerk(g > prev ? 1 : -1, Math.abs(g - prev));
+    if (prev >= 0) { gearJerk(g > prev ? 1 : -1, Math.abs(g - prev)); shiftRev(g > prev ? 1 : -1, Math.abs(g - prev)); }
     else if (navigator.vibrate) navigator.vibrate(8);
     const v = $("#vol"); v.value = GEARS[g];
     v.dispatchEvent(new Event("input"));
@@ -2861,6 +2898,7 @@
   }, 1000);
 
   restore();
+  paintShift();
   recomputeArtists();
   syncEqUi();
   root.dataset.mode = mode;
