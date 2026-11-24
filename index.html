@@ -805,6 +805,7 @@
   <div class="utility">
     <button id="shuffle" type="button" class="is-on">🔀 Shuffle: <span>on</span></button>
     <button id="rain" type="button">☔ Rain: <span>off</span></button>
+    <button id="idlerev" type="button" title="While the music is paused, the engine idles and revs now and then">Idle revving: <span>off</span></button>
     <button id="revsound" type="button" title="A short engine rev when you change gear">Shift sound: <span>off</span></button>
     <button id="taste-reset" type="button" title="Forget every like and dislike on this device">↺ Reset likes: <span>0</span></button>
     <button id="debug-copy" type="button" title="Copies a short technical report you can send to the developer">🩺 Copy debug info</button>
@@ -1138,6 +1139,7 @@
   let bass = 0, level = 0;              // smoothed 0..1
   let needleNow = 0, needleTarget = 0;
   let rainLevel = 0;   // 0 off, 1 soft, 2 med, 3 heavy
+  let idleRev = false;      // engine revs now and then while the music is paused
   let shiftSound = false;   // short engine rev on gear changes (off until the listener turns it on)
 
   /* ---- Tuning equalizer state (10 bands + preamp gain, in dB) ---- */
@@ -1158,7 +1160,7 @@
   /* ---- persisted settings (per browser, best-effort) ---- */
   const STORE = "nightrace.settings.v1";
   function save(){
-    try { localStorage.setItem(STORE, JSON.stringify({ mode, shuffle, volume: masterVolume, rainLevel, eq, taste, favs, recent, radio: radioPref, shiftSound })); }
+    try { localStorage.setItem(STORE, JSON.stringify({ mode, shuffle, volume: masterVolume, rainLevel, eq, taste, favs, recent, radio: radioPref, shiftSound, idleRev })); }
     catch(e){ /* storage unavailable — settings just won't persist */ }
   }
   function restore(){
@@ -1182,6 +1184,7 @@
       }
       if (s.radio === true) radioPref = true;
       if (s.shiftSound === true) shiftSound = true;
+      if (s.idleRev === true) idleRev = true;
       if (typeof s.rainLevel === "number") rainLevel = Math.min(3, Math.max(0, s.rainLevel));
       if (s.eq && Array.isArray(s.eq.bands) && s.eq.bands.length === EQ_FREQS.length) {
         const clamp = v => Math.min(12, Math.max(-12, Math.round(+v) || 0));
@@ -2526,6 +2529,8 @@
     buildOrder();
     save();
   });
+  function paintIdle(){ $("#idlerev").querySelector("span").textContent = idleRev ? "on" : "off"; $("#idlerev").classList.toggle("is-on", idleRev); }
+  $("#idlerev").addEventListener("click", () => { idleRev = !idleRev; paintIdle(); save(); idleNext = 0; if (idleRev) idleRevNow(); });
   function paintShift(){ $("#revsound").querySelector("span").textContent = shiftSound ? "on" : "off"; $("#revsound").classList.toggle("is-on", shiftSound); }
   $("#revsound").addEventListener("click", e => {
     shiftSound = !shiftSound;
@@ -2756,6 +2761,37 @@
       o1.start(t); o2.start(t); o1.stop(t + total + 0.08); o2.stop(t + total + 0.08);
     } catch(e){ /* sound is optional */ }
   }
+
+  /* ---- Idle revving: while the music is paused the "car" is stopped with the engine running,
+     and every so often the driver blips the throttle. Softer than a gear-shift rev, 1 to 3 blips. ---- */
+  let idleNext = 0;
+  function idleBlip(delay, peak, lenS){
+    const t = ctx.currentTime + delay;
+    const out = ctx.createGain(); out.gain.value = 0.0001; out.connect(masterGain);
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 3; lp.connect(out);
+    const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(); o1.type = "sawtooth"; o2.type = "square";
+    o1.frequency.setValueAtTime(52, t); o1.frequency.exponentialRampToValueAtTime(peak, t + lenS * 0.35); o1.frequency.exponentialRampToValueAtTime(54, t + lenS);
+    o2.frequency.setValueAtTime(78, t); o2.frequency.exponentialRampToValueAtTime(peak * 1.5, t + lenS * 0.35); o2.frequency.exponentialRampToValueAtTime(81, t + lenS);
+    lp.frequency.setValueAtTime(380, t); lp.frequency.exponentialRampToValueAtTime(1500, t + lenS * 0.35); lp.frequency.exponentialRampToValueAtTime(420, t + lenS);
+    const g2 = ctx.createGain(); g2.gain.value = 0.3; o1.connect(lp); o2.connect(g2); g2.connect(lp);
+    out.gain.exponentialRampToValueAtTime(0.2, t + 0.04); out.gain.setValueAtTime(0.2, t + lenS * 0.4); out.gain.exponentialRampToValueAtTime(0.0001, t + lenS + 0.05);
+    o1.start(t); o2.start(t); o1.stop(t + lenS + 0.1); o2.stop(t + lenS + 0.1);
+  }
+  function idleRevNow(){
+    if (!ctx || !masterGain || ctx.state !== "running") return;
+    try {
+      const n = 1 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) idleBlip(i * 0.52, 120 + Math.random() * 90, 0.42 + Math.random() * 0.2);
+    } catch(e){}
+  }
+  setInterval(() => {
+    if (!idleRev || !started || document.hidden) { idleNext = 0; return; }
+    const a = decks[activeIdx];
+    if (!a.paused) { idleNext = 0; return; }                 // music is playing: the car is moving, no idling
+    const now = performance.now();
+    if (!idleNext) { idleNext = now + 2500 + Math.random() * 3500; return; }   // first blip soon after pausing
+    if (now >= idleNext) { idleRevNow(); idleNext = now + 7000 + Math.random() * 11000; }
+  }, 700);
   function setGear(g){
     g = Math.min(6, Math.max(0, g));
     if (g === curGear) return;
@@ -2898,7 +2934,7 @@
   }, 1000);
 
   restore();
-  paintShift();
+  paintShift(); paintIdle();
   recomputeArtists();
   syncEqUi();
   root.dataset.mode = mode;
