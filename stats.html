@@ -127,7 +127,7 @@
       if (error || !data) throw error || new Error("no data");
       if (data.limited) { fail("Too many refreshes. Give it a minute."); return; }
       paint(data);
-    } catch(e) { fail("Stats are unavailable right now."); }
+    } catch(e) { try { console.error("public_stats failed:", e && (e.message || e)); } catch(_) {} fail("Stats are unavailable right now."); }
   }
   function fail(msg){ const e = $("err"); e.textContent = msg; e.hidden = false; }
   // live racers: join the same presence room as the player, as a silent observer (never announces itself)
