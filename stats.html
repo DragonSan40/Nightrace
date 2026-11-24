@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Night Race — Live Stats</title>
+<title>Night Race: Live Stats</title>
 <meta name="description" content="Live numbers from Night Race: racers online, plays, likes and the most played songs.">
 <link rel="canonical" href="https://nightrace.pacecorp.in/stats.html">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Night Race — Live Stats">
+<meta property="og:title" content="Night Race: Live Stats">
 <meta property="og:description" content="Racers online, plays, likes and the top songs on the night drive.">
 <meta property="og:url" content="https://nightrace.pacecorp.in/stats.html">
 <meta property="og:image" content="https://nightrace.pacecorp.in/og-image.jpg">
@@ -67,8 +67,8 @@
   </header>
 
   <section class="grid" aria-label="Totals">
-    <div class="card hot"><b id="s-now">&mdash;</b><span>Racers online now</span></div>
-    <div class="card"><b id="s-plays">&mdash;</b><span>Songs played</span></div>
+    <div class="card hot"><b id="s-now">&mdash;</b><span>Racers online</span></div>
+    <div class="card"><b id="s-plays">&mdash;</b><span>Plays so far</span></div>
     <div class="card"><b id="s-likes">&mdash;</b><span>Likes</span></div>
     <div class="card"><b id="s-listeners">&mdash;</b><span>Racers so far</span></div>
     <div class="card"><b id="s-countries">&mdash;</b><span>Countries</span></div>
@@ -85,7 +85,7 @@
 
   <div id="err" class="err" hidden></div>
   <a class="cta" href="./">Start driving</a>
-  <footer>Totals only. No listener is ever identified here. <span id="stamp"></span></footer>
+  <footer>Totals only. No listener is ever identified. <span id="stamp"></span></footer>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.109.0"></script>
@@ -98,8 +98,10 @@
   const fmt = n => Number(n || 0).toLocaleString("en-IN");
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const shown = {};
+  const LABELS = { "s-now": ["Racer online", "Racers online"], "s-plays": ["Play so far", "Plays so far"], "s-likes": ["Like", "Likes"], "s-listeners": ["Racer so far", "Racers so far"], "s-countries": ["Country", "Countries"], "s-songs": ["Song in the garage", "Songs in the garage"] };
   function count(id, to){
     const el = $(id); to = Number(to) || 0; const from = shown[id] || 0; shown[id] = to;
+    const lab = LABELS[id]; if (lab) el.nextElementSibling.textContent = to === 1 ? lab[0] : lab[1];
     if (reduced || from === to) { el.textContent = fmt(to); return; }
     const t0 = performance.now(), dur = 900;
     (function step(now){ const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(Math.round(from + (to - from) * e)); if (k < 1) requestAnimationFrame(step); })(t0);
@@ -107,8 +109,8 @@
   const LANE_COL = { slow: "var(--slow)", cool: "var(--cool)", hype: "var(--hype)" };
   function list(id, rows, key, unit){
     const ol = $(id);
-    if (!rows || !rows.length) { ol.innerHTML = '<li class="empty">Nothing yet. Be the first to ride.</li>'; return; }
-    ol.innerHTML = rows.map((r, i) => '<li><span class="r">' + (i + 1) + '</span><span class="t"><b>' + esc(r.title) + '</b><small>' + esc(r.artist || "") + (r.artist ? " &middot; " : "") + esc(r.mode) + '</small></span><span class="v">' + fmt(r[key]) + " " + unit + '</span></li>').join("");
+    if (!rows || !rows.length) { ol.innerHTML = '<li class="empty">Nothing here yet. Be the first to ride.</li>'; return; }
+    ol.innerHTML = rows.map((r, i) => '<li><span class="r">' + (i + 1) + '</span><span class="t"><b>' + esc(r.title) + '</b><small>' + esc(r.artist || "") + (r.artist ? " &middot; " : "") + esc(r.mode) + '</small></span><span class="v">' + fmt(r[key]) + " " + (Number(r[key]) === 1 ? unit.replace(/s$/, "") : unit) + '</span></li>').join("");
   }
   function paint(d){
     $("err").hidden = true;
@@ -121,13 +123,13 @@
   }
   const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
   async function load(){
-    if (!sb) { fail("Couldn't reach the stats service."); return; }
+    if (!sb) { fail("We couldn't reach the stats service."); return; }
     try {
       const { data, error } = await sb.rpc("public_stats");
       if (error || !data) throw error || new Error("no data");
-      if (data.limited) { fail("Too many refreshes. Give it a minute."); return; }
+      if (data.limited) { fail("Too many refreshes. Please wait a minute."); return; }
       paint(data);
-    } catch(e) { try { console.error("public_stats failed:", e && (e.message || e)); } catch(_) {} fail("Stats are unavailable right now."); }
+    } catch(e) { try { console.error("public_stats failed:", e && (e.message || e)); } catch(_) {} fail("Stats are unavailable right now. Please try again later."); }
   }
   function fail(msg){ const e = $("err"); e.textContent = msg; e.hidden = false; }
   // live racers: join the same presence room as the player, as a silent observer (never announces itself)
@@ -138,7 +140,7 @@
       ch.on("presence", { event: "sync" }, () => {
         const n = Object.keys(ch.presenceState()).filter(k => !k.startsWith("stats-")).length;
         count("s-now", n);
-        $("live-line").textContent = n === 1 ? "1 racer on the road right now" : n + " racers on the road right now";
+        $("live-line").textContent = n === 1 ? "1 racer on the road right now" : n === 0 ? "No racers on the road right now" : n + " racers on the road right now";
       }).subscribe();
     } catch(e) { $("live-line").textContent = "Live count unavailable"; }
   }
