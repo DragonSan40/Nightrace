@@ -824,7 +824,7 @@
   </div>
         <button id="install-btn" type="button" class="install-btn" hidden>📲 Install Night Race</button>
         <div id="ios-install-hint" class="ios-hint" hidden>On iPhone: tap Share, then "Add to Home Screen"</div>
-  <p class="eq-note">Privacy: Night Race counts listens and likes anonymously. It keeps your device type, browser, time zone, an approximate location (city level, worked out from your IP address by a location service) and a scrambled one-way code from that address (the address itself is never stored), plus a random ID in this browser. No name or email.</p>
+  <p class="eq-note">Privacy: Night Race counts listens and likes anonymously. It keeps your device type, browser, time zone, an approximate location (city level, worked out from your IP address by a location service) and a scrambled one-way code from that address (the address itself is never stored), plus a random ID in this browser. No name or email. <a href="privacy.html" target="_blank" rel="noopener">Read the full privacy policy</a>.</p>
 </aside>
 
 <aside id="tuning" class="sheet" role="dialog" aria-modal="true" aria-label="Tuning equalizer">
@@ -2339,7 +2339,7 @@
     const wantT = want ? list().find(q => q.src === want.src) : null;   // a Favourite tapped from another lane
     buildOrder(wantT);
 
-    const live = radioOn ? (radioAvail(m) ? radioAt(m, Date.now()) : (setRadio(false, "No live radio on this lane yet"), null)) : null;
+    const live = radioOn ? (radioAvail(m) ? radioAt(m, radioNow()) : (setRadio(false, "No live radio on this lane yet"), null)) : null;
     if (live) {
       radioTunedAt = Date.now();
       if (wasPlaying) crossfadeTo(live.t, MODE_FADE_MS, live.off); else straightLoad(live.t, false, live.off);
@@ -2367,6 +2367,26 @@
      moment with no server in the middle. Each lane is a station: its songs play back to back in their
      saved order, and the position in that loop is (time since 1970) modulo (total length). It needs each
      song's length (the admin fills it in), so a lane is only on the air once at least 2 songs have one. */
+  /* Phones sometimes have a wrong clock. Ask the website for the real time (the HTTP "Date" header)
+     and correct for the difference, so everyone is still on the same song. Differences under 1.5 s are
+     ignored because the header only has whole-second precision. */
+  let radioSkew = 0;
+  const radioNow = () => Date.now() + radioSkew;
+  async function syncRadioClock(retuneIfMoved){
+    try {
+      const t0 = Date.now();
+      const r = await fetch("manifest.json?c=" + t0, { method: "HEAD", cache: "no-store" });
+      const t1 = Date.now(), srv = Date.parse(r.headers.get("date") || "");
+      if (!isFinite(srv) || t1 - t0 > 4000) return;
+      const est = srv + 500 - (t0 + t1) / 2;            // +500 ms: the header is rounded down to the second
+      const next = Math.abs(est) < 1500 ? 0 : Math.round(est);
+      const moved = Math.abs(next - radioSkew);
+      radioSkew = next;
+      if (next) logEv("radio clock off by " + Math.round(next / 1000) + " s, corrected");
+      if (retuneIfMoved && moved > 1500 && radioOn && started) radioTune(0);
+    } catch(e){ /* offline or blocked: keep the phone's own clock */ }
+  }
+  setInterval(() => { if (radioOn) syncRadioClock(true); }, 10 * 60 * 1000);
   const radioList = m => TRACKS[m].filter(t => t.dur > 0).sort((a, b) => (a.pos - b.pos) || String(a.id).localeCompare(String(b.id)));
   const radioAvail = m => radioList(m).length >= 2;
   function radioAt(m, ms){
@@ -2377,7 +2397,7 @@
     return { t: l[0], off: 0 };
   }
   function radioTune(fadeMs){
-    const live = radioAt(mode, Date.now());
+    const live = radioAt(mode, radioNow());
     if (!live) { setRadio(false, "No live radio on this lane yet"); load(1); return; }
     radioTunedAt = Date.now();
     rememberPlayed(live.t);
@@ -2403,6 +2423,7 @@
     if (why) radioNote(why); else radioNote(radioOn ? "Live: everyone hears this together" : "");
     save();
     if (!started) return;
+    if (radioOn) syncRadioClock(true);
     if (radioOn && !quiet) radioTune(900);
     if (!radioOn) { buildOrder(shownTrack); cursor = shownTrack ? 0 : -1; }
   }
@@ -2412,7 +2433,7 @@
   setInterval(() => {
     if (!radioOn || !started || document.hidden) return;
     const cur = decks[activeIdx]; if (cur.paused || fadingNow() || Date.now() - radioTunedAt < 6000) return;
-    const live = radioAt(mode, Date.now()); if (!live) return;
+    const live = radioAt(mode, radioNow()); if (!live) return;
     if (!shownTrack || shownTrack.src !== live.t.src) { radioTune(700); return; }
     if (cur.readyState >= 2 && Math.abs(cur.currentTime - live.off) > 5) { try { cur.currentTime = live.off; } catch(e){} }
   }, 5000);
@@ -2963,6 +2984,7 @@
   window.nrDebug = function(){
     return {
       log: nrLog.slice(),
+      radio: { on: radioOn, preferred: radioPref, clockSkewMs: radioSkew, laneReady: radioAvail(mode) },
       previousSession: prevSession,   // endedCleanly:false = the app was closed by the system, not by the page
       audioContextState: ctx ? ctx.state : "(no AudioContext created yet)",
       masterVolume,
