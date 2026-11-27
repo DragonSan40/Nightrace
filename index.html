@@ -32,7 +32,7 @@
     --panel:   #10151F;
     --line:    #1E2636;
     --ink:     #E8ECF4;
-    --muted:   #6F7C93;
+    --muted:   #8190A9;
     --muted-bright: #A4B1CC;
     --accent:  #E8A33D;
     --accent-dim: rgba(232,163,61,.18);
@@ -451,7 +451,7 @@
   #brief { position: fixed; inset: 0; z-index: 60; display: grid; align-items: end; justify-items: center; padding: 0 16px max(18px, env(safe-area-inset-bottom));
     background: linear-gradient(to top, rgba(4,6,10,.88) 0%, rgba(4,6,10,.55) 55%, rgba(4,6,10,.15) 100%);
     opacity: 0; visibility: hidden; transition: opacity .6s ease, visibility .6s; }
-  #brief.on { opacity: 1; visibility: visible; }
+  #brief.on { opacity: 1; visibility: visible; transition: opacity .6s ease, visibility 0s; }   /* visible at once so focus can move in */
   #brief .panel { position: relative; width: min(460px, 100%); margin-bottom: 4vh; padding: 20px 20px 16px;
     background: linear-gradient(180deg, rgba(16,21,31,.92), rgba(10,13,20,.94)); border: 1px solid var(--line); border-radius: 14px;
     box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.02) inset, 0 0 40px var(--accent-dim);
@@ -487,6 +487,15 @@
     #brief .scan { transform: none; } #brief li, #brief .b-go { opacity: 1; }
   }
   @media (hover: none) { #brief .kb { display: none; } }
+
+
+  /* ---- Accessibility ---- */
+  .sr-only { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  a:focus-visible, button:focus-visible, [role="button"]:focus-visible, [role="slider"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  #brief .panel:focus { outline: none; }
+  [aria-disabled="true"] { cursor: not-allowed; }
+  i.ic { font-style: normal; }
+  .radio .bar { outline: none; }
 
   /* ---- Personal / Radio switch ---- */
   .modesel { display: flex; margin: .7rem auto 0; width: max-content; max-width: 100%; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: rgba(8,10,16,.6); }
@@ -699,16 +708,17 @@
         <b>Hype</b><small>touge, redline</small>
       </button>
     </div>
-    <div class="modesel" id="modesel" role="group" aria-label="Play mode">
+    <div class="modesel" id="modesel" role="group" aria-label="Play mode" aria-describedby="radio-note">
       <button type="button" data-play="personal" aria-pressed="true">Personal</button>
       <button type="button" data-play="radio" aria-pressed="false">Radio</button>
     </div>
     <div class="modenote" id="radio-note" role="status" aria-live="polite"></div>
+    <div class="sr-only" id="np-live" role="status" aria-live="polite"></div>
     <div class="dock">
-      <button id="favs-open" type="button" aria-haspopup="dialog" aria-controls="favs">📻 Favs<span id="fav-count"></span></button>
-      <button id="garage-open" type="button" aria-haspopup="dialog" aria-controls="garage">🛠 Garage</button>
-      <button id="tuning-open" type="button" aria-haspopup="dialog" aria-controls="tuning">🎚 Tuning</button>
-      <button id="keys-open" type="button" class="desk-only" aria-haspopup="dialog" aria-controls="keys" title="Keyboard shortcuts (?)">⌨ Keys</button>
+      <button id="favs-open" type="button" aria-haspopup="dialog" aria-controls="favs"><i class="ic" aria-hidden="true">📻</i> Favs<span id="fav-count"></span></button>
+      <button id="garage-open" type="button" aria-haspopup="dialog" aria-controls="garage"><i class="ic" aria-hidden="true">🛠</i> Garage</button>
+      <button id="tuning-open" type="button" aria-haspopup="dialog" aria-controls="tuning"><i class="ic" aria-hidden="true">🎚</i> Tuning</button>
+      <button id="keys-open" type="button" class="desk-only" aria-haspopup="dialog" aria-controls="keys" title="Keyboard shortcuts (?)"><i class="ic" aria-hidden="true">⌨</i> Keys</button>
     </div>
     <a id="fuel" class="fuel" href="#" role="button">
       <span class="fuel-t">
@@ -782,7 +792,7 @@
 
 <!-- ============ FIRST-VISIT BRIEFING ============ -->
 <div id="brief" role="dialog" aria-modal="true" aria-labelledby="brief-h" aria-hidden="true">
-  <div class="panel">
+  <div class="panel" id="brief-panel" tabindex="-1">
     <div class="b-top"><span>Co-driver</span><b>Briefing</b></div>
     <h2 id="brief-h">Four things to know</h2>
     <div class="scan"></div>
@@ -803,26 +813,27 @@
   <div class="sheet-head"><h2>Garage</h2><button type="button" class="sheet-close" data-close>Close</button></div>
   <span class="group-label">Playback</span>
   <div class="utility">
-    <button id="shuffle" type="button" class="is-on">🔀 Shuffle: <span>on</span></button>
-    <button id="rain" type="button">☔ Rain: <span>off</span></button>
+    <button id="shuffle" type="button" class="is-on"><i class="ic" aria-hidden="true">🔀</i> Shuffle: <span>on</span></button>
+    <button id="rain" type="button"><i class="ic" aria-hidden="true">☔</i> Rain: <span>off</span></button>
     <button id="idlerev" type="button" title="While the music is paused, the engine idles and revs now and then">Idle revving: <span>off</span></button>
     <button id="revsound" type="button" title="A short engine rev when you change gear">Shift sound: <span>off</span></button>
-    <button id="taste-reset" type="button" title="Forget every like and dislike on this device">↺ Reset likes: <span>0</span></button>
-    <button id="debug-copy" type="button" title="Copies a short technical report you can send to the developer">🩺 Copy debug info</button>
-    <a id="stats-link" class="util-link" href="stats.html" target="_blank" rel="noopener">Live stats</a>
+    <button id="taste-reset" type="button" title="Forget every like and dislike on this device"><i class="ic" aria-hidden="true">↺</i> Reset likes: <span>0</span></button>
+    <button id="debug-copy" type="button" title="Copies a short technical report you can send to the developer"><i class="ic" aria-hidden="true">🩺</i> Copy debug info</button>
+    <a id="stats-link" class="util-link" href="stats.html" target="_blank" rel="noopener">Live stats<span class="sr-only"> (opens in a new tab)</span></a>
+    <a id="feedback-link" class="util-link" href="https://x.com/intent/post?text=%40sgs_40%20Night%20Race%20feedback%3A%20" target="_blank" rel="noopener" title="Opens a post on X, addressed to the developer">Send feedback on X<span class="sr-only"> (opens in a new tab)</span></a>
     <button id="tour-open" type="button" title="Show the quick tour again">Quick tour</button>
-    <button id="wakelock" type="button" title="Keeps your screen on so the display doesn't lock — music keeps playing either way">🔆 Keep awake: <span>off</span></button>
+    <button id="wakelock" type="button" title="Keeps your screen on so the display doesn't lock — music keeps playing either way"><i class="ic" aria-hidden="true">🔆</i> Keep awake: <span>off</span></button>
   </div>
   <span class="group-label">Car sounds</span>
   <div class="carsounds" aria-label="Car sounds">
-    <button id="cs-left" type="button" class="cs-btn" title="Left indicator">◀ Left</button>
-    <button id="cs-right" type="button" class="cs-btn" title="Right indicator">Right ▶</button>
-    <button id="cs-hazard" type="button" class="cs-btn" title="Hazards">⚠ Hazards</button>
-    <button id="cs-chime" type="button" class="cs-btn" title="Seatbelt chime">🔔 Chime</button>
-    <button id="cs-fail" type="button" class="cs-btn" title="Engine failure">💀 Engine fail</button>
-    <button id="cs-horn" type="button" class="cs-btn" title="Horn">📯 Horn</button>
+    <button id="cs-left" type="button" class="cs-btn" title="Left indicator"><i class="ic" aria-hidden="true">◀</i> Left</button>
+    <button id="cs-right" type="button" class="cs-btn" title="Right indicator">Right <i class="ic" aria-hidden="true">▶</i></button>
+    <button id="cs-hazard" type="button" class="cs-btn" title="Hazards"><i class="ic" aria-hidden="true">⚠</i> Hazards</button>
+    <button id="cs-chime" type="button" class="cs-btn" title="Seatbelt chime"><i class="ic" aria-hidden="true">🔔</i> Chime</button>
+    <button id="cs-fail" type="button" class="cs-btn" title="Engine failure"><i class="ic" aria-hidden="true">💀</i> Engine fail</button>
+    <button id="cs-horn" type="button" class="cs-btn" title="Horn"><i class="ic" aria-hidden="true">📯</i> Horn</button>
   </div>
-        <button id="install-btn" type="button" class="install-btn" hidden>📲 Install Night Race</button>
+        <button id="install-btn" type="button" class="install-btn" hidden><i class="ic" aria-hidden="true">📲</i> Install Night Race</button>
         <div id="ios-install-hint" class="ios-hint" hidden>On iPhone: tap Share, then "Add to Home Screen"</div>
   <p class="eq-note">Privacy: Night Race counts listens and likes anonymously. It keeps your device type, browser, time zone, an approximate location (city level, worked out from your IP address by a location service) and a scrambled one-way code from that address (the address itself is never stored), plus a random ID in this browser. No name or email. <a href="privacy.html" target="_blank" rel="noopener">Read the full privacy policy</a>.</p>
 </aside>
@@ -857,7 +868,7 @@
     <input type="range" id="eq-pre" min="-12" max="12" step="1" value="0">
     <span class="eq-val" id="eqv-pre">0 dB</span>
   </div>
-  <button type="button" id="eq-reset" class="eq-reset">↺ Reset</button>
+  <button type="button" id="eq-reset" class="eq-reset"><i class="ic" aria-hidden="true">↺</i> Reset</button>
 </aside>
 
 <aside id="favs" class="sheet" role="dialog" aria-modal="true" aria-label="Favourites">
@@ -2411,13 +2422,14 @@
   }
   function paintRadioAvail(){
     const ok = radioAvail(mode), b = document.querySelector('#modesel [data-play="radio"]');
-    if (b) { b.classList.toggle("na", !ok); b.title = ok ? "Everyone hears the same song at the same time" : "Radio for this lane is not on the air yet"; }
+    if (b) { b.classList.toggle("na", !ok); b.setAttribute("aria-disabled", String(!ok)); b.title = ok ? "Everyone hears the same song at the same time" : "Radio for this lane is not on the air yet"; }
   }
   function setRadio(on, why, quiet){
     if (on && !radioAvail(mode)) { radioNote("Radio for the " + mode + " lane is not on the air yet."); return; }
     radioOn = !!on;
     if (!quiet || !on) radioPref = radioOn;
     root.classList.toggle("radio", radioOn);
+    ["#prev", "#next", "#shuffle", "#bar"].forEach(q => { const el = $(q); if (el) el.setAttribute("aria-disabled", String(radioOn)); });
     document.querySelectorAll("#modesel button").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.play === "radio") === radioOn)));
     paintRadioAvail();
     if (why) radioNote(why); else radioNote(radioOn ? "Live: everyone hears this together" : "");
@@ -2472,30 +2484,53 @@
     }
   }
 
+  /* ---- Screen readers: announce the song when it changes ---- */
+  (function(){
+    const t = $("#np-title"), sub = $("#np-sub"), live = $("#np-live"); if (!t || !live) return;
+    let timer = 0, last = "";
+    const say = () => { const msg = t.textContent.trim(); if (!msg || msg === last || /^Warming up/.test(msg)) return; last = msg; live.textContent = "Now playing: " + msg + (sub && sub.textContent.trim() ? ", " + sub.textContent.trim() : ""); };
+    new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(say, 700); }).observe(t, { childList: true, characterData: true, subtree: true });
+  })();
+
   /* ---- First-visit briefing: shows once per device, replayable from the Garage ---- */
   const BRIEF_KEY = "nightrace.briefed";
   const briefEl = document.getElementById("brief");
   let briefTimer = 0, briefReturn = null;
+  // While a dialog is open, the page behind it can't be reached by keyboard or screen reader.
+  function setBackgroundInert(on){ const d = document.getElementById("deck"); if (d) { if (on) d.setAttribute("inert", ""); else d.removeAttribute("inert"); } }
   function showBrief(){
     if (!briefEl || briefEl.classList.contains("on")) return;
     briefReturn = document.activeElement;
     briefEl.setAttribute("aria-hidden", "false");
     briefEl.classList.add("on");
+    setBackgroundInert(true);
     lsSet(BRIEF_KEY, "1");
-    setTimeout(() => { try { document.getElementById("brief-go").focus({ preventScroll: true }); } catch(e){} }, reduced ? 50 : 2000);
+    try { document.getElementById("brief-panel").focus({ preventScroll: true }); } catch(e){}
+    setTimeout(() => { try { if (briefEl.classList.contains("on") && document.activeElement === document.getElementById("brief-panel")) document.getElementById("brief-go").focus({ preventScroll: true }); } catch(e){} }, reduced ? 50 : 2000);
   }
   function hideBrief(){
     if (!briefEl) return;
     clearTimeout(briefTimer);
     briefEl.classList.remove("on");
     briefEl.setAttribute("aria-hidden", "true");
+    setBackgroundInert(false);
     try { if (briefReturn && briefReturn.focus) briefReturn.focus({ preventScroll: true }); } catch(e){}
+    // If the old target is gone (the Engine Start button, say), land on Play instead of nowhere.
+    try { if (briefEl.contains(document.activeElement) || document.activeElement === document.body) { const pl = document.getElementById("play"); if (pl) pl.focus({ preventScroll: true }); } } catch(e){}
   }
   if (briefEl){
     document.getElementById("brief-go").addEventListener("click", hideBrief);
     document.getElementById("brief-skip").addEventListener("click", hideBrief);
     briefEl.addEventListener("click", e => { if (e.target === briefEl) hideBrief(); });
-    addEventListener("keydown", e => { if (briefEl.classList.contains("on") && (e.key === "Escape" || e.key === "Enter")) { e.preventDefault(); e.stopPropagation(); hideBrief(); } }, true);
+    addEventListener("keydown", e => {
+      if (!briefEl.classList.contains("on")) return;
+      if (e.key === "Tab") {   // keep Tab inside the briefing
+        const f = [document.getElementById("brief-go"), document.getElementById("brief-skip")], i = f.indexOf(document.activeElement);
+        e.preventDefault(); f[i < 0 ? 0 : (i + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus();
+        return;
+      }
+      if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); hideBrief(); }
+    }, true);
     const tour = document.getElementById("tour-open");
     if (tour) tour.addEventListener("click", () => { setSheet(null); setTimeout(showBrief, 350); });
   }
@@ -2870,6 +2905,8 @@
     } else {
       a.addEventListener("click", e => { e.preventDefault(); thank("fuel stop opens soon"); });
     }
+    if (FUEL_URL) a.removeAttribute("role");   // a real link, so it is announced as one
+    else a.addEventListener("keydown", e => { if (e.key === " ") { e.preventDefault(); a.click(); } });   // role=button should also answer to Space
   })();
 
   /* ---- Bottom sheets (Garage, Tuning). They live in the DOM from load so
@@ -2880,6 +2917,7 @@
     const prev = openSheet;
     if (prev) prev.classList.remove("open");
     openSheet = el;
+    setBackgroundInert(!!el);
     if (el) {
       if (!prev) sheetReturnFocus = document.activeElement;
       el.classList.add("open");
@@ -2909,7 +2947,7 @@
       // Shortcuts pause while a sheet is open; Tab stays inside it.
       if (e.key === "Escape") { setSheet(null); return; }
       if (e.key === "Tab") {
-        const f = [...openSheet.querySelectorAll("button:not([disabled]):not([hidden]), input")];
+        const f = [...openSheet.querySelectorAll("button:not([disabled]):not([hidden]), input:not([disabled]), a[href]:not([hidden]), select, [tabindex]:not([tabindex='-1'])")];
         const first = f[0], last = f[f.length - 1];
         if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
         else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
